@@ -32,7 +32,7 @@ struct Args {
     #[arg(long)]
     no_animation: bool,
 
-    /// Compositor (auto-detected when omitted)
+    /// Compositor backend (auto-detected, or generic when unknown)
     #[arg(long)]
     compositor: Option<Compositor>,
 
@@ -49,8 +49,8 @@ fn main() -> Result<()> {
     let compositor = args
         .compositor
         .or_else(Compositor::detect)
-        .context("failed to detect a supported compositor; pass --compositor to override")?;
-    info!("compositor: {compositor}");
+        .unwrap_or(Compositor::Generic);
+    info!("compositor backend: {compositor}");
     let scene = compositor.connect()?.scene()?;
     info!(
         "scene: {} outputs, {} windows",

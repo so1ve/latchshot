@@ -11,6 +11,7 @@ use log::debug;
 
 use crate::Scene;
 
+mod generic;
 mod niri;
 
 /// Reads the output and window geometry needed by the capture and selection
@@ -20,23 +21,25 @@ pub trait SceneReader {
     fn scene(&self) -> Result<Scene>;
 }
 
-/// Compositor integrations known to latchshot.
+/// Compositor backends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum Compositor {
     Niri,
     Sway,
     Hyprland,
     Mango,
+    Generic,
 }
 
 impl Compositor {
     /// The environment variable that signals this compositor.
-    const fn env_var(self) -> &'static str {
+    const fn env_var(self) -> Option<&'static str> {
         match self {
-            Self::Niri => "NIRI_SOCKET",
-            Self::Sway => "SWAYSOCK",
-            Self::Hyprland => "HYPRLAND_INSTANCE_SIGNATURE",
-            Self::Mango => "MANGO_INSTANCE_SIGNATURE",
+            Self::Niri => Some("NIRI_SOCKET"),
+            Self::Sway => Some("SWAYSOCK"),
+            Self::Hyprland => Some("HYPRLAND_INSTANCE_SIGNATURE"),
+            Self::Mango => Some("MANGO_INSTANCE_SIGNATURE"),
+            Self::Generic => None,
         }
     }
 
@@ -44,8 +47,11 @@ impl Compositor {
     #[must_use]
     pub fn detect() -> Option<Self> {
         for backend in Self::value_variants() {
-            if env::var_os(backend.env_var()).is_some() {
-                debug!("env {} matched {backend}", backend.env_var());
+            let Some(env_var) = backend.env_var() else {
+                continue;
+            };
+            if env::var_os(env_var).is_some() {
+                debug!("env {env_var} matched {backend}");
 
                 return Some(*backend);
             }
@@ -55,14 +61,22 @@ impl Compositor {
             desktop
                 .split(':')
                 .find_map(|name| Self::from_str(name, true).ok())
+                .filter(|backend| *backend != Self::Generic)
         })
     }
 
-    /// Connects to this compositor.
+    /// Connects to the selected scene backend.
+    ///
+    /// Compositor variants without a dedicated integration currently use the
+    /// generic Wayland backend.
     pub fn connect(self) -> Result<Box<dyn SceneReader>> {
         match self {
             Self::Niri => Ok(Box::new(niri::Niri::connect()?)),
-            other => unimplemented!("the `{other}` compositor is not implemented yet"),
+            backend @ (Self::Sway | Self::Hyprland | Self::Mango | Self::Generic) => {
+                debug!("using generic Wayland scene discovery for {backend}");
+
+                Ok(Box::new(generic::Generic::connect()?))
+            }
         }
     }
 }

@@ -18,7 +18,7 @@
 //! use latchshot::{CaptureBackend, Compositor, Selection, SelectionResult};
 //!
 //! fn main() -> Result<()> {
-//!     let compositor = Compositor::detect().context("no supported compositor was detected")?;
+//!     let compositor = Compositor::detect().unwrap_or(Compositor::Generic);
 //!     let scene = compositor.connect()?.scene()?;
 //!
 //!     let capture =

@@ -4,7 +4,7 @@ A lightweight yet intelligent window-aware screenshot tool for Wayland. Latchsho
 
 ## Requirements
 
-Latchshot targets compositors that expose the wlroots-style protocols needed by its custom overlay. In addition to the core Wayland globals for compositing, shared memory, outputs, seats, and subsurfaces, the compositor must support:
+Latchshot targets compositors that expose the wlroots-style protocols needed by its custom overlay. The compositor must support:
 
 - [`wlr-layer-shell-unstable-v1`](https://wayland.app/protocols/wlr-layer-shell-unstable-v1) (`zwlr_layer_shell_v1`)
 - [`viewporter`](https://wayland.app/protocols/viewporter) (`wp_viewporter`)
@@ -17,18 +17,19 @@ Latchshot targets compositors that expose the wlroots-style protocols needed by 
 | Compositor | Status | Selection support |
 | --- | --- | --- |
 | [Niri (with a customized fork)](https://github.com/so1ve/niri/tree/feat/latchshot-support) | Supported | Window snapping and free-form regions |
-| [Upstream Niri](https://github.com/niri-wm/niri) | Not supported | Missing the `WindowGeometries` IPC extension |
-| [Sway](https://github.com/swaywm/sway) | Planned | Region-only backend not implemented yet |
-| [Hyprland](https://github.com/hyprwm/Hyprland) | Planned | Region-only backend not implemented yet |
-| [Mango](https://github.com/mangowm/mango) | Planned | Region-only backend not implemented yet |
+| [Upstream Niri](https://github.com/niri-wm/niri) | Supported | Free-form regions only |
+| [Sway](https://github.com/swaywm/sway) | Planned | Generic region fallback is available; window snapping is planned |
+| [Hyprland](https://github.com/hyprwm/Hyprland) | Planned | Generic region fallback is available; window snapping is planned |
+| [Mango](https://github.com/mangowm/mango) | Planned | Generic region fallback is available; window snapping is planned |
+| Other compatible Wayland compositors | Best effort | Free-form regions only |
 | KDE Plasma | Intentionally unsupported | — |
 | GNOME | Intentionally unsupported | — |
 
-Protocol support alone is not currently sufficient: Latchshot also needs a scene backend to provide output placement and, when available, window geometry. The CLI already reserves compositor identifiers for Sway, Hyprland, and Mango, but their scene backends have not been implemented.
+The `generic` backend is selected automatically for unknown compositors and backs the compositor variants that do not yet have dedicated scene discovery. Upstream Niri also switches to it when the compositor rejects the custom `WindowGeometries` request as unknown. Capture and free-form region selection continue to work, while window snapping is disabled.
 
 KDE Plasma and GNOME remain intentionally out of scope because Latchshot targets this protocol stack rather than portal- or desktop-shell-specific screenshot flows.
 
-The default clipboard destination also requires `wl-copy` from [`wl-clipboard`](https://github.com/bugaevc/wl-clipboard). It is included automatically by the Nix package and is unnecessary when using `--output` or `--stdout`.
+Copying to clipboard (the default destiniation) also requires `wl-copy` from [`wl-clipboard`](https://github.com/bugaevc/wl-clipboard).
 
 ## Installation
 
