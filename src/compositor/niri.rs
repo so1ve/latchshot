@@ -70,30 +70,20 @@ impl SceneReader for Niri {
                 // Current-mode metadata is required by the Niri IPC.
                 let mode_index = output.current_mode.unwrap();
                 let mode = output.modes.get(mode_index).unwrap();
-                let pixel_size = {
-                    let width = mode.width;
-                    let height = mode.height;
-                    let transform = logical.transform;
-                    match transform {
-                        Transform::Normal
-                        | Transform::_180
-                        | Transform::Flipped
-                        | Transform::Flipped180 => Size::new(width as f64, height as f64),
-                        Transform::_90
-                        | Transform::_270
-                        | Transform::Flipped90
-                        | Transform::Flipped270 => Size::new(height as f64, width as f64),
-                    }
+                let (transform, swaps_axes) = match logical.transform {
+                    Transform::Normal => (OutputTransform::Normal, false),
+                    Transform::_90 => (OutputTransform::Rotate90, true),
+                    Transform::_180 => (OutputTransform::Rotate180, false),
+                    Transform::_270 => (OutputTransform::Rotate270, true),
+                    Transform::Flipped => (OutputTransform::Flipped, false),
+                    Transform::Flipped90 => (OutputTransform::Flipped90, true),
+                    Transform::Flipped180 => (OutputTransform::Flipped180, false),
+                    Transform::Flipped270 => (OutputTransform::Flipped270, true),
                 };
-                let transform = match logical.transform {
-                    Transform::Normal => OutputTransform::Normal,
-                    Transform::_90 => OutputTransform::Rotate90,
-                    Transform::_180 => OutputTransform::Rotate180,
-                    Transform::_270 => OutputTransform::Rotate270,
-                    Transform::Flipped => OutputTransform::Flipped,
-                    Transform::Flipped90 => OutputTransform::Flipped90,
-                    Transform::Flipped180 => OutputTransform::Flipped180,
-                    Transform::Flipped270 => OutputTransform::Flipped270,
+                let pixel_size = if swaps_axes {
+                    Size::new(mode.height as f64, mode.width as f64)
+                } else {
+                    Size::new(mode.width as f64, mode.height as f64)
                 };
 
                 Output {
