@@ -13,8 +13,7 @@ pub(super) struct Screencopy {
 impl Screencopy {
     pub(super) fn connect() -> Result<Self> {
         Ok(Self {
-            connection: WayshotConnection::new()
-                .context("failed to connect to Wayland for screen capture")?,
+            connection: WayshotConnection::new()?,
         })
     }
 }

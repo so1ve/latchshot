@@ -38,9 +38,8 @@ pub fn select(
     frame: DesktopFrame,
     animations: bool,
 ) -> Result<(SelectionResult, DesktopFrame)> {
-    let connection = Connection::connect_to_env().context("failed to connect to Wayland")?;
-    let (globals, mut event_queue) =
-        registry_queue_init(&connection).context("failed to read Wayland globals")?;
+    let connection = Connection::connect_to_env()?;
+    let (globals, mut event_queue) = registry_queue_init(&connection)?;
     let qh = event_queue.handle();
 
     let compositor =
@@ -76,9 +75,7 @@ pub fn select(
     state.create_outputs(&compositor, &subcompositor, &layer_shell, &qh)?;
 
     loop {
-        event_queue
-            .blocking_dispatch(&mut state)
-            .context("Wayland event dispatch failed")?;
+        event_queue.blocking_dispatch(&mut state)?;
 
         if let Some(error) = state.failure.take() {
             return Err(error);

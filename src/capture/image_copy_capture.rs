@@ -18,10 +18,8 @@ pub(super) struct ImageCopyCapture {
 
 impl ImageCopyCapture {
     pub(super) fn connect() -> Result<Self> {
-        let mut client = Client::connect().context("failed to connect for image-copy capture")?;
-        client
-            .refresh()
-            .context("failed to enumerate capture sources")?;
+        let mut client = Client::connect()?;
+        client.refresh()?;
 
         Ok(Self {
             client: Cell::new(Some(client)),
@@ -51,7 +49,7 @@ impl FrameCapture for ImageCopyCapture {
                     let image = match frame {
                         Frame::Shm(captured) => {
                             RgbaImage::from_raw(captured.width, captured.height, captured.rgba)
-                                .context("invalid buffer size")?
+                                .expect("capture buffer dimensions must match its byte length")
                         }
                         Frame::Dmabuf(_) => bail!("the compositor returned a dma-buf frame"),
                     };

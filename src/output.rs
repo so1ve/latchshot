@@ -34,7 +34,7 @@ impl Target {
                 image.height(),
                 ExtendedColorType::Rgba8,
             )
-            .context("failed to encode screenshot as PNG")?;
+            .unwrap();
 
         match self {
             Self::File(path) => fs::write(path, png)
@@ -43,10 +43,10 @@ impl Target {
                 let stdout = io::stdout();
                 let mut stdout = stdout.lock();
 
-                stdout
-                    .write_all(&png)
-                    .context("failed to write screenshot to stdout")?;
-                stdout.flush().context("failed to flush stdout")
+                stdout.write_all(&png)?;
+                stdout.flush()?;
+
+                Ok(())
             }
             Self::Clipboard => {
                 let mut child = Command::new("wl-copy")
@@ -62,7 +62,7 @@ impl Target {
                     .write_all(&png)
                     .context("failed to send screenshot to wl-copy")?;
 
-                let status = child.wait().context("failed to wait for wl-copy")?;
+                let status = child.wait()?;
                 if !status.success() {
                     bail!("wl-copy exited with {status}");
                 }
