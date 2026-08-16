@@ -1,0 +1,55 @@
+[package]
+name = "latchshot"
+version = "0.1.0"
+edition = "2024"
+description = "A lightweight yet intelligent window-aware screenshot tool"
+repository = "https://github.com/so1ve/latchshot"
+license = "MIT"
+
+[dependencies]
+anyhow = "1.0.104"
+clap = { version = "4.6.6", features = ["derive"] }
+env_logger = "0.11"
+image = { version = "0.25.9", default-features = false, features = ["png"] }
+libwayshot = { version = "0.9.0", default-features = false }
+log = "0.4"
+notify-rust = "4.18.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+smithay-client-toolkit = { version = "0.21.1", default-features = false, features = ["xkbcommon"] }
+wayland-client = "0.31.15"
+wayland-protocols = { version = "0.32.13", features = ["client"] }
+wlr-capture = { version = "1.5", default-features = false }
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+
+[lints.clippy]
+all = "warn"
+clone_on_ref_ptr = "warn"
+default_trait_access = "warn"
+disallowed_methods = "warn"
+enum_glob_use = "warn"
+fn_params_excessive_bools = "warn"
+format_collect = "warn"
+format_push_string = "warn"
+implicit_clone = "warn"
+items_after_statements = "warn"
+manual_let_else = "warn"
+manual_string_new = "warn"
+match_same_arms = "warn"
+match_wildcard_for_single_variants = "warn"
+missing_const_for_fn = "warn"
+must_use_candidate = "warn"
+needless_pass_by_value = "warn"
+redundant_pub_crate = "warn"
+semicolon_if_nothing_returned = "warn"
+single_match_else = "warn"
+struct_excessive_bools = "warn"
+undocumented_unsafe_blocks = "warn"
+uninlined_format_args = "warn"
+unnecessary_literal_bound = "warn"
+use_self = "warn"
+verbose_file_reads = "warn"
+wildcard_imports = "warn"
