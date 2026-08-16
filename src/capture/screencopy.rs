@@ -19,7 +19,7 @@ impl Screencopy {
 }
 
 impl FrameCapture for Screencopy {
-    fn capture(&self, scene: &Scene) -> Result<DesktopFrame> {
+    fn capture(&mut self, scene: &Scene) -> Result<DesktopFrame> {
         let wayland_outputs = self.connection.get_all_outputs();
         let outputs = scene
             .outputs

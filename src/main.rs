@@ -51,7 +51,8 @@ fn main() -> Result<()> {
         .or_else(Compositor::detect)
         .unwrap_or(Compositor::Generic);
     info!("compositor backend: {compositor}");
-    let scene = compositor.connect()?.scene()?;
+    let mut compositor = compositor.connect()?;
+    let scene = compositor.scene()?;
     info!(
         "scene: {} outputs, {} windows",
         scene.outputs.len(),
@@ -72,7 +73,8 @@ fn main() -> Result<()> {
         .or_else(CaptureBackend::detect)
         .context("failed to detect a supported capture backend; pass --capture to override")?;
     info!("capture backend: {capture}");
-    let frame = capture.connect()?.capture(&scene)?;
+    let mut capture = capture.connect()?;
+    let frame = capture.capture(&scene)?;
     let (result, frame) = select(scene, frame, !args.no_animation)?;
     let selection = match result {
         SelectionResult::Selected(selection) => selection,

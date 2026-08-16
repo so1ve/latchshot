@@ -18,7 +18,7 @@ mod niri;
 /// stages.
 pub trait SceneReader {
     /// Returns a snapshot in global logical coordinates.
-    fn scene(&self) -> Result<Scene>;
+    fn scene(&mut self) -> Result<Scene>;
 }
 
 /// Compositor backends.

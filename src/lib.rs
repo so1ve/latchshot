@@ -19,11 +19,13 @@
 //!
 //! fn main() -> Result<()> {
 //!     let compositor = Compositor::detect().unwrap_or(Compositor::Generic);
-//!     let scene = compositor.connect()?.scene()?;
+//!     let mut compositor = compositor.connect()?;
+//!     let scene = compositor.scene()?;
 //!
 //!     let capture =
 //!         CaptureBackend::detect().context("no supported capture protocol was detected")?;
-//!     let frame = capture.connect()?.capture(&scene)?;
+//!     let mut capture = capture.connect()?;
+//!     let frame = capture.capture(&scene)?;
 //!
 //!     let (result, frame) = select(scene, frame, true)?;
 //!     let selection = match result {

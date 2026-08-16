@@ -19,7 +19,7 @@ mod screencopy;
 /// A source of frozen desktop frames for a compositor [`Scene`].
 pub trait FrameCapture {
     /// Captures each output in `scene` and preserves its logical geometry.
-    fn capture(&self, scene: &Scene) -> Result<DesktopFrame>;
+    fn capture(&mut self, scene: &Scene) -> Result<DesktopFrame>;
 }
 
 /// Capture backends, preferred in detection order.

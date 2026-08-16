@@ -91,7 +91,7 @@ impl Generic {
 }
 
 impl SceneReader for Generic {
-    fn scene(&self) -> Result<Scene> {
+    fn scene(&mut self) -> Result<Scene> {
         Ok(Scene {
             outputs: self.outputs.clone(),
             windows: Vec::new(),

@@ -1,5 +1,4 @@
 // FIXME: Keep the local wire types aligned with the custom Niri IPC fork.
-use std::cell::RefCell;
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
@@ -15,32 +14,29 @@ mod ipc;
 /// [niri](https://github.com/niri-wm/niri) window discovery via its
 /// [IPC socket](https://github.com/niri-wm/niri/wiki/IPC).
 pub(super) struct Niri {
-    socket: RefCell<Socket>,
+    socket: Socket,
 }
 
 impl Niri {
     pub(super) fn connect() -> Result<Self> {
         let socket = Socket::connect().context("failed to connect to the Niri IPC socket")?;
 
-        Ok(Self {
-            socket: RefCell::new(socket),
-        })
+        Ok(Self { socket })
     }
 
-    fn request_raw(&self, request: Request) -> Result<Result<Response, String>> {
+    fn request_raw(&mut self, request: Request) -> Result<Result<Response, String>> {
         self.socket
-            .borrow_mut()
             .send(request)
             .context("failed to communicate with Niri")
     }
 
-    fn request(&self, request: Request) -> Result<Response> {
+    fn request(&mut self, request: Request) -> Result<Response> {
         self.request_raw(request)?.map_err(anyhow::Error::msg)
     }
 }
 
 impl SceneReader for Niri {
-    fn scene(&self) -> Result<Scene> {
+    fn scene(&mut self) -> Result<Scene> {
         let geometries = match self.request_raw(Request::WindowGeometries)? {
             Ok(Response::WindowGeometries(geometries)) => geometries,
             Ok(_) => panic!("Niri returned an unexpected response to WindowGeometries"),
