@@ -48,7 +48,7 @@ impl Socket {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Copy, Serialize)]
 pub(super) enum Request {
     Outputs,
     Windows,

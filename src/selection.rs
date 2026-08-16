@@ -49,8 +49,6 @@ impl Selector {
     /// press before the interaction becomes a region drag.
     #[must_use]
     pub fn new(scene: Scene, drag_threshold: f64) -> Self {
-        debug_assert!(drag_threshold >= 0.0);
-
         Self {
             scene,
             state: State::Waiting,

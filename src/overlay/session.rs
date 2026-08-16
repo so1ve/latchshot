@@ -149,13 +149,7 @@ impl State {
     fn wl_output_named(&self, name: &str) -> Result<wl_output::WlOutput> {
         self.output_state
             .outputs()
-            .find(|output| {
-                self.output_state
-                    .info(output)
-                    .and_then(|info| info.name)
-                    .as_deref()
-                    == Some(name)
-            })
+            .find(|output| self.output_state.info(output).unwrap().name.unwrap() == name)
             .with_context(|| format!("Wayland output {name} is not available"))
     }
 

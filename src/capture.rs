@@ -124,11 +124,6 @@ impl DesktopFrame {
                     .map(|intersection| (frame, intersection))
             })
             .collect::<Vec<_>>();
-        debug_assert!(
-            !frames.is_empty(),
-            "the selected region does not intersect any output"
-        );
-
         // Fast path: If there's only one frame and it exactly matches the region, we
         // can return it directly.
         if let [(frame, intersection)] = frames.as_slice()

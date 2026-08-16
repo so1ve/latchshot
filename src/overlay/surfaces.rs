@@ -13,8 +13,8 @@ use wayland_protocols::wp::viewporter::client::wp_viewporter::WpViewporter;
 
 use super::highlight::PendingReveal;
 use super::render::{
-    BORDER_WIDTH, CORNER_RADIUS, Corner, CornerMask, border_pixel, copy_frame, dimmed_channel,
-    veil_pixel,
+    BORDER_WIDTH, CORNER_RADIUS, Corner, CornerMask, DIM_FACTOR, border_pixel_with_alpha,
+    copy_frame, multiply_channel,
 };
 use super::session::{FramePlan, State};
 use crate::capture::OutputFrame;
@@ -280,14 +280,13 @@ impl CornerSurface {
         }
     }
 
-    fn show(&mut self, pool: &mut SlotPool, position: (i32, i32), size: i32, reveal: f32) {
+    fn show(&mut self, pool: &mut SlotPool, position: (i32, i32), size: i32, opacity: u8) {
         if size <= 0 {
             self.hide();
 
             return;
         }
 
-        let opacity = (reveal * 255.0).round() as u8;
         self.child.layout(position, (size, size));
         if self.child.visible && self.opacity == Some(opacity) {
             self.child.surface.commit();
@@ -297,16 +296,15 @@ impl CornerSurface {
 
         let mask = &self.mask;
         self.child.redraw(pool, |canvas| {
-            mask.render(f32::from(opacity) / 255.0, canvas);
+            mask.render(opacity, canvas);
         });
         self.opacity = Some(opacity);
     }
 
-    fn ready(&self, pool: &mut SlotPool, size: i32, reveal: f32) -> bool {
+    fn ready(&self, pool: &mut SlotPool, size: i32, opacity: u8) -> bool {
         if size <= 0 {
             return true;
         }
-        let opacity = (reveal * 255.0).round() as u8;
 
         (self.child.visible && self.opacity == Some(opacity)) || self.child.ready(pool)
     }
@@ -337,7 +335,9 @@ impl OutputOverlay {
                 wl_shm::Format::Argb8888,
             )
             .unwrap();
-        copy_frame(frame, canvas, dimmed_channel);
+        copy_frame(frame, canvas, |channel| {
+            multiply_channel(channel, DIM_FACTOR)
+        });
         let (highlight, canvas) = pool
             .create_buffer(
                 width as i32,
@@ -516,8 +516,14 @@ impl OutputOverlay {
             let radius = (CORNER_RADIUS.round() as i32)
                 .min(target_width / 2)
                 .min(target_height / 2);
-            let border_pixel = border_pixel(reveal);
-            let veil_pixel = veil_pixel(reveal);
+            let opacity = (reveal * 255.0).round() as u8;
+            let border_pixel = border_pixel_with_alpha(opacity);
+            let veil_pixel = [
+                0,
+                0,
+                0,
+                (f32::from(255 - DIM_FACTOR) * (1.0 - reveal)).round() as u8,
+            ];
             let corner_visibility = [
                 has_top && has_left,
                 has_top && has_right,
@@ -593,7 +599,7 @@ impl OutputOverlay {
                     .iter()
                     .zip(corner_layout)
                     .all(|(corner, (_, visible))| {
-                        !visible || corner.ready(&mut self.pool, radius, reveal)
+                        !visible || corner.ready(&mut self.pool, radius, opacity)
                     });
             if !(veil_ready && borders_ready && corners_ready) {
                 return;
@@ -631,7 +637,7 @@ impl OutputOverlay {
 
             for (corner, (position, visible)) in self.corners.iter_mut().zip(corner_layout) {
                 if visible {
-                    corner.show(&mut self.pool, position, radius, reveal);
+                    corner.show(&mut self.pool, position, radius, opacity);
                 } else {
                     corner.hide();
                 }
@@ -646,8 +652,8 @@ impl OutputOverlay {
 
         let surface = self.layer.wl_surface();
         surface.frame(qh, FrameCallbackData(surface.clone()));
-        let pending_reveal = pending_reveal
-            .filter(|reveal| visible && matches!(self.needs_reveal_frame(*reveal), Some(true)));
+        let pending_reveal =
+            pending_reveal.filter(|reveal| visible && self.needs_reveal_frame(*reveal).unwrap());
         self.pending_frame = Some(PendingFrame {
             continue_animation,
             reveal: pending_reveal,

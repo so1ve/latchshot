@@ -50,12 +50,11 @@ impl Generic {
                     Transform::Flipped270 => (OutputTransform::Flipped270, true),
                     _ => unreachable!(),
                 };
-                let (pixel_width, pixel_height) = if swaps_axes {
-                    (mode_height, mode_width)
+                let pixel_size = if swaps_axes {
+                    Size::new(f64::from(mode_height), f64::from(mode_width))
                 } else {
-                    (mode_width, mode_height)
+                    Size::new(f64::from(mode_width), f64::from(mode_height))
                 };
-                let pixel_size = Size::new(f64::from(pixel_width), f64::from(pixel_height));
                 let (x, y, logical_width, logical_height) =
                     match (info.logical_position, info.logical_size) {
                         (Some((x, y)), Some((width, height))) => {

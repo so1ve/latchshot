@@ -1,8 +1,8 @@
 use crate::capture::OutputFrame;
 
-const DIM_FACTOR: u8 = 140;
 pub(super) const BORDER_WIDTH: f64 = 2.0;
 pub(super) const CORNER_RADIUS: f64 = 6.0;
+pub(super) const DIM_FACTOR: u8 = 140;
 
 const BORDER_BLUE: u8 = 255;
 const BORDER_GREEN: u8 = 239;
@@ -22,9 +22,9 @@ pub(super) fn copy_frame(frame: &OutputFrame, canvas: &mut [u8], map_channel: im
     {
         let [red, green, blue, alpha] = source.0;
         target.copy_from_slice(&[
-            map_channel(premultiply(blue, alpha)),
-            map_channel(premultiply(green, alpha)),
-            map_channel(premultiply(red, alpha)),
+            map_channel(multiply_channel(blue, alpha)),
+            map_channel(multiply_channel(green, alpha)),
+            map_channel(multiply_channel(red, alpha)),
             alpha,
         ]);
     }
@@ -87,47 +87,27 @@ impl CornerMask {
         self.size
     }
 
-    pub(super) fn render(&self, reveal: f32, canvas: &mut [u8]) {
-        debug_assert!((0.0..=1.0).contains(&reveal));
+    pub(super) fn render(&self, opacity: u8, canvas: &mut [u8]) {
         debug_assert_eq!(canvas.len(), self.coverage.len() * 4);
 
         for (pixel, coverage) in canvas.as_chunks_mut::<4>().0.iter_mut().zip(&self.coverage) {
-            let alpha = (f32::from(*coverage) * reveal).round() as u8;
+            let alpha = ((*coverage as u16 * opacity as u16 + 127) / 255) as u8;
             pixel.copy_from_slice(&border_pixel_with_alpha(alpha));
         }
     }
 }
 
-#[must_use]
-pub(super) fn border_pixel(reveal: f32) -> [u8; 4] {
-    debug_assert!((0.0..=1.0).contains(&reveal));
-
-    border_pixel_with_alpha((reveal * 255.0).round() as u8)
+pub(super) const fn multiply_channel(channel: u8, factor: u8) -> u8 {
+    ((channel as u16 * factor as u16 + 127) / 255) as u8
 }
 
-#[must_use]
-pub(super) fn veil_pixel(reveal: f32) -> [u8; 4] {
-    debug_assert!((0.0..=1.0).contains(&reveal));
-    let alpha = (f32::from(255 - DIM_FACTOR) * (1.0 - reveal)).round() as u8;
-
-    [0, 0, 0, alpha]
-}
-
-const fn border_pixel_with_alpha(alpha: u8) -> [u8; 4] {
+pub(super) const fn border_pixel_with_alpha(alpha: u8) -> [u8; 4] {
     [
-        premultiply(BORDER_BLUE, alpha),
-        premultiply(BORDER_GREEN, alpha),
-        premultiply(BORDER_RED, alpha),
+        multiply_channel(BORDER_BLUE, alpha),
+        multiply_channel(BORDER_GREEN, alpha),
+        multiply_channel(BORDER_RED, alpha),
         alpha,
     ]
-}
-
-const fn premultiply(channel: u8, alpha: u8) -> u8 {
-    ((channel as u16 * alpha as u16 + 127) / 255) as u8
-}
-
-pub(super) const fn dimmed_channel(channel: u8) -> u8 {
-    ((channel as u16 * DIM_FACTOR as u16 + 127) / 255) as u8
 }
 
 #[cfg(test)]
@@ -152,26 +132,16 @@ mod tests {
         let mut dimmed = vec![0; 16];
 
         copy_frame(&frame, &mut original, std::convert::identity);
-        copy_frame(&frame, &mut dimmed, dimmed_channel);
+        copy_frame(&frame, &mut dimmed, |channel| channel / 2);
 
         assert_eq!(&original[..4], &[100, 25, 50, 128]);
-        assert_eq!(
-            &dimmed[..4],
-            &[
-                dimmed_channel(100),
-                dimmed_channel(25),
-                dimmed_channel(50),
-                128,
-            ]
-        );
+        assert_eq!(&dimmed[..4], &[50, 12, 25, 128]);
     }
 
     #[test]
-    fn reveal_uses_matching_veil_and_border_alpha() {
-        assert_eq!(veil_pixel(0.0), [0, 0, 0, 115]);
-        assert_eq!(veil_pixel(1.0), [0, 0, 0, 0]);
-        assert_eq!(border_pixel(0.0), [0, 0, 0, 0]);
-        assert_eq!(border_pixel(1.0), [255, 239, 215, 255]);
+    fn border_pixels_are_premultiplied() {
+        assert_eq!(border_pixel_with_alpha(0), [0, 0, 0, 0]);
+        assert_eq!(border_pixel_with_alpha(255), [255, 239, 215, 255]);
     }
 
     #[test]
@@ -179,7 +149,7 @@ mod tests {
         let mask = CornerMask::new(1.0, Corner::TopLeft);
         let mut canvas = vec![0; (mask.size().pow(2) * 4) as usize];
 
-        mask.render(1.0, &mut canvas);
+        mask.render(255, &mut canvas);
 
         assert_eq!(&canvas[..4], &[0, 0, 0, 0]);
         assert!(canvas.as_chunks::<4>().0.iter().any(|pixel| pixel[3] != 0));

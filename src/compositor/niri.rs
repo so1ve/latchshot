@@ -1,5 +1,5 @@
 // FIXME: Keep the local wire types aligned with the custom Niri IPC fork.
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
@@ -15,7 +15,7 @@ mod ipc;
 /// [niri](https://github.com/niri-wm/niri) window discovery via its
 /// [IPC socket](https://github.com/niri-wm/niri/wiki/IPC).
 pub(super) struct Niri {
-    socket: Cell<Option<Socket>>,
+    socket: RefCell<Socket>,
 }
 
 impl Niri {
@@ -23,18 +23,15 @@ impl Niri {
         let socket = Socket::connect().context("failed to connect to the Niri IPC socket")?;
 
         Ok(Self {
-            socket: Cell::new(Some(socket)),
+            socket: RefCell::new(socket),
         })
     }
 
     fn request_raw(&self, request: Request) -> Result<Result<Response, String>> {
-        let mut socket = self.socket.take().unwrap();
-        let result = socket
+        self.socket
+            .borrow_mut()
             .send(request)
-            .context("failed to communicate with Niri");
-        self.socket.set(Some(socket));
-
-        result
+            .context("failed to communicate with Niri")
     }
 
     fn request(&self, request: Request) -> Result<Response> {
@@ -47,7 +44,10 @@ impl SceneReader for Niri {
         let geometries = match self.request_raw(Request::WindowGeometries)? {
             Ok(Response::WindowGeometries(geometries)) => geometries,
             Ok(_) => panic!("Niri returned an unexpected response to WindowGeometries"),
-            Err(error) if is_unsupported_window_geometries(&error) => {
+            Err(error)
+                if error.contains("error parsing request")
+                    && error.contains("unknown variant `WindowGeometries`") =>
+            {
                 warn!("Niri does not support WindowGeometries; using generic Wayland discovery");
 
                 // FIXME: Remove this compatibility fallback as soon as upstream Niri supports
@@ -68,8 +68,7 @@ impl SceneReader for Niri {
             .filter_map(|output| output.logical.map(|logical| (output, logical)))
             .map(|(output, logical)| {
                 // Current-mode metadata is required by the Niri IPC.
-                let mode_index = output.current_mode.unwrap();
-                let mode = output.modes.get(mode_index).unwrap();
+                let mode = &output.modes[output.current_mode.unwrap()];
                 let (transform, swaps_axes) = match logical.transform {
                     Transform::Normal => (OutputTransform::Normal, false),
                     Transform::_90 => (OutputTransform::Rotate90, true),
@@ -115,9 +114,8 @@ impl SceneReader for Niri {
         // Preserve stacking order; skip entries lost between IPC snapshots.
         let windows = windows
             .into_iter()
-            .map(|window| window.id)
-            .filter_map(|window_id| {
-                let geometry = geometries.get(&window_id)?;
+            .filter_map(|window| {
+                let geometry = geometries.get(&window.id)?;
                 let output = output_by_name.get(geometry.output.as_str())?;
 
                 let geometry = Rect::new(
@@ -133,27 +131,5 @@ impl SceneReader for Niri {
             .collect();
 
         Ok(Scene { outputs, windows })
-    }
-}
-
-fn is_unsupported_window_geometries(error: &str) -> bool {
-    error.contains("error parsing request") && error.contains("unknown variant `WindowGeometries`")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::is_unsupported_window_geometries;
-
-    #[test]
-    fn recognizes_only_the_missing_window_geometries_request() {
-        assert!(is_unsupported_window_geometries(
-            "error parsing request: unknown variant `WindowGeometries`, expected `Outputs`"
-        ));
-        assert!(!is_unsupported_window_geometries(
-            "error parsing request: unknown variant `Outputs`, expected `Windows`"
-        ));
-        assert!(!is_unsupported_window_geometries(
-            "failed to retrieve WindowGeometries"
-        ));
     }
 }
