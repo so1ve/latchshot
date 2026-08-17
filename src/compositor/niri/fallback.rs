@@ -362,10 +362,14 @@ fn fit_axis(
         } else {
             (0.0, (length - total).max(0.0))
         };
-        if let Some(index) = focused_segment.filter(|index| segments[*index] <= length) {
+        if let Some(index) = focused_segment {
             let offset = segments[..index].iter().sum::<f64>() + gap * index as f64;
-            lower = lower.max(-offset);
-            upper = upper.min(length - offset - segments[index]);
+            let minimum_visible = 0.5 / scale;
+
+            // Only reject placements where the focused column is
+            // entirely outside the output.
+            lower = lower.max(-offset - segments[index] + minimum_visible);
+            upper = upper.min(length - offset - minimum_visible);
         }
         if lower > upper {
             continue;
@@ -409,9 +413,20 @@ fn fit_axis(
                 strength += value.ln_1p();
             }
             let explained = matched_peaks.len();
-            if explained < 2 || hits * 2 < seen {
+            let minimum_explained = if scrollable { 1 } else { 2 };
+            if explained < minimum_explained || hits * 2 < seen {
                 continue;
             }
+            let mut cursor = origin;
+            let visible_coverage: f64 = segments
+                .iter()
+                .map(|segment| {
+                    let visible = ((cursor + segment).min(length) - cursor.max(0.0)).max(0.0);
+                    cursor += segment + gap;
+
+                    visible
+                })
+                .sum();
 
             candidates.push(Candidate {
                 axis: Axis {
@@ -420,7 +435,8 @@ fn fit_axis(
                 },
                 score: 10.0 * explained as f64 / seen as f64
                     + explained as f64
-                    + (strength - distance) / seen as f64,
+                    + (strength - distance) / seen as f64
+                    + visible_coverage / length,
             });
         }
     }
@@ -437,7 +453,7 @@ fn fit_axis(
 
         origin_delta > tolerance || gap_delta > tolerance
     });
-    if rival.is_some_and(|rival| best.score < rival.score * 1.04) {
+    if !scrollable && rival.is_some_and(|rival| best.score < rival.score * 1.04) {
         return None;
     }
 
@@ -700,6 +716,46 @@ mod tests {
                 },
                 Window {
                     geometry: Rect::new(434.0, 252.0, 446.0, 396.0),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn recovers_a_partially_visible_column_from_one_edge() {
+        let output = output(900.0, 500.0);
+        let scene = Scene {
+            outputs: vec![output.clone()],
+            windows: Vec::new(),
+        };
+        let mut image = RgbaImage::from_pixel(900, 500, Rgba([10, 10, 10, 255]));
+        paint(
+            &mut image,
+            Rect::new(0.0, 50.0, 450.0, 400.0),
+            Rgba([180, 80, 80, 255]),
+        );
+        paint(
+            &mut image,
+            Rect::new(450.0, 50.0, 600.0, 400.0),
+            Rgba([80, 180, 80, 255]),
+        );
+        let desktop = frame(image, output.logical_geometry);
+        let snapshot = snapshot(
+            vec![
+                ipc_window(1, 1, (450.0, 400.0), (446.0, 396.0)),
+                ipc_window(2, 2, (600.0, 400.0), (596.0, 396.0)),
+            ],
+            Some(2),
+        );
+
+        assert_eq!(
+            reconstruct(&snapshot, &scene, &desktop),
+            vec![
+                Window {
+                    geometry: Rect::new(102.0, 252.0, 446.0, 396.0),
+                },
+                Window {
+                    geometry: Rect::new(552.0, 252.0, 448.0, 396.0),
                 },
             ]
         );
