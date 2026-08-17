@@ -1,0 +1,11 @@
+name: Setup Rust CI
+description: Install Latchshot's native CI dependencies
+
+runs:
+  using: composite
+  steps:
+    - name: Install Wayland dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install --yes libwayland-dev libxkbcommon-dev
