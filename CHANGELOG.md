@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/so1ve/latchshot/compare/v0.1.1...v0.2.0) - 2026-08-17
+
+### Added
+
+- support capturing full screen using `F`
+- remove corners to align with actual capture output
+- [**breaking**] automatically select capture backend and remove `wlr-capture`
+
 ## [0.1.1](https://github.com/so1ve/latchshot/compare/v0.1.0...v0.1.1) - 2026-08-17
 
 ### Added
