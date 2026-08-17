@@ -44,19 +44,15 @@ impl SceneReader for Niri {
         let geometries = match self.request_raw(Request::WindowGeometries)? {
             Ok(Response::WindowGeometries(geometries)) => Some(geometries),
             Ok(_) => panic!("Niri returned an unexpected response to WindowGeometries"),
-            Err(error)
-                if error.contains("error parsing request")
-                    && error.contains("unknown variant `WindowGeometries`") =>
-            {
+            Err(error) => {
                 warn!(
-                    "Niri does not support WindowGeometries; reconstructing window geometry from standard IPC"
+                    "Niri rejected WindowGeometries ({error}); reconstructing window geometry from standard IPC"
                 );
 
                 // FIXME: Remove the fallback module, state, and override once upstream Niri
                 // exposes exact on-screen window geometry.
                 None
             }
-            Err(error) => return Err(anyhow::Error::msg(error)),
         };
         let Response::Outputs(outputs) = self.request(Request::Outputs)? else {
             panic!("Niri returned an unexpected response to Outputs");
