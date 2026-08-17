@@ -18,14 +18,14 @@ Latchshot targets compositors that expose the wlroots-style protocols needed by 
 | --- | --- | --- |
 | [Niri (with a customized fork)](https://github.com/so1ve/niri/tree/feat/latchshot-support) | Supported | Window snapping and free-form regions |
 | [Upstream Niri](https://github.com/niri-wm/niri) | Supported | Free-form regions only |
-| [Sway](https://github.com/swaywm/sway) | Planned | Generic region fallback is available; window snapping is planned |
-| [Hyprland](https://github.com/hyprwm/Hyprland) | Planned | Generic region fallback is available; window snapping is planned |
-| [Mango](https://github.com/mangowm/mango) | Planned | Generic region fallback is available; window snapping is planned |
+| [Sway](https://github.com/swaywm/sway) | Supported | Window snapping and free-form regions |
+| [Hyprland](https://github.com/hyprwm/Hyprland) | Supported | Window snapping and free-form regions |
+| [Mango](https://github.com/mangowm/mango) | Supported | Window snapping and free-form regions |
 | Other compatible Wayland compositors | Best effort | Free-form regions only |
 | KDE Plasma | Intentionally unsupported | — |
 | GNOME | Intentionally unsupported | — |
 
-The `generic` backend is selected automatically for unknown compositors and backs the compositor variants that do not yet have dedicated scene discovery. Upstream Niri also switches to it when the compositor rejects the custom `WindowGeometries` request as unknown. Capture and free-form region selection continue to work, while window snapping is disabled.
+The `generic` backend is selected automatically for unknown compositors. Upstream Niri also switches to it when the compositor rejects the custom `WindowGeometries` request as unknown. Capture and free-form region selection continue to work, while window snapping is disabled.
 
 KDE Plasma and GNOME remain intentionally out of scope because Latchshot targets this protocol stack rather than portal- or desktop-shell-specific screenshot flows.
 

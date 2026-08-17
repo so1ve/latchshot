@@ -11,8 +11,7 @@ use crate::{Output, OutputId, OutputTransform, Rect, Scene, Size, Window};
 
 mod ipc;
 
-/// [niri](https://github.com/niri-wm/niri) window discovery via its
-/// [IPC socket](https://github.com/niri-wm/niri/wiki/IPC).
+/// [niri](https://github.com/niri-wm/niri) window discovery
 pub(super) struct Niri {
     socket: Socket,
 }

@@ -12,7 +12,11 @@ use log::debug;
 use crate::Scene;
 
 mod generic;
+mod hyprland;
+mod ipc;
+mod mango;
 mod niri;
+mod sway;
 
 /// Reads the output and window geometry needed by the capture and selection
 /// stages.
@@ -66,15 +70,14 @@ impl Compositor {
     }
 
     /// Connects to the selected scene backend.
-    ///
-    /// Compositor variants without a dedicated integration currently use the
-    /// generic Wayland backend.
     pub fn connect(self) -> Result<Box<dyn SceneReader>> {
         match self {
             Self::Niri => Ok(Box::new(niri::Niri::connect()?)),
-            backend @ (Self::Sway | Self::Hyprland | Self::Mango | Self::Generic) => {
-                debug!("using generic Wayland scene discovery for {backend}");
-
+            Self::Sway => Ok(Box::new(sway::Sway::connect()?)),
+            Self::Hyprland => Ok(Box::new(hyprland::Hyprland::connect()?)),
+            Self::Mango => Ok(Box::new(mango::Mango::connect()?)),
+            Self::Generic => {
+                debug!("using generic Wayland scene discovery");
                 Ok(Box::new(generic::Generic::connect()?))
             }
         }
