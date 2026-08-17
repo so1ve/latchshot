@@ -154,6 +154,10 @@ Run `latchshot --help` for all options. Set `RUST_LOG=latchshot=debug` for addit
 
 Latchshot can also be used as a Rust library. See the [API documentation on docs.rs](https://docs.rs/latchshot) for details.
 
+## AI Usage Disclosure
+
+GPT 5.6-Sol was used to generate compositor adapters for Hyprland, Sway and MangoWM, which I do not use. Doc comments and tests are generated under my guidance.
+
 ## License
 
 [MIT](LICENSE). Made with ♥️ by [Ray](https://github.com/so1ve).
