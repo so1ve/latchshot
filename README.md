@@ -4,7 +4,7 @@ A lightweight yet intelligent window-aware screenshot tool for Wayland. Latchsho
 
 ## Demo
 
-<video src="assets/latchshot-demo.mp4" controls></video>
+[![Latchshot demo](assets/latchshot-demo.webp)](assets/latchshot-demo.mp4)
 
 ## Requirements
 
