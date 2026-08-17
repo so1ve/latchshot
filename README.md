@@ -4,7 +4,7 @@ A lightweight yet intelligent window-aware screenshot tool for Wayland. Latchsho
 
 ## Requirements
 
-Latchshot targets compositors that expose the wlroots-style protocols needed by its custom overlay. The compositor must support:
+Latchshot targets compositors that expose the Wayland protocols needed by its custom overlay. The compositor must support:
 
 - [`wlr-layer-shell-unstable-v1`](https://wayland.app/protocols/wlr-layer-shell-unstable-v1) (`zwlr_layer_shell_v1`)
 - [`viewporter`](https://wayland.app/protocols/viewporter) (`wp_viewporter`)
