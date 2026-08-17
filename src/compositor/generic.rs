@@ -9,7 +9,7 @@ use wayland_client::{Connection, QueueHandle};
 use super::SceneReader;
 use crate::{Output, OutputId, OutputTransform, Rect, Scene, Size};
 
-/// Output-only scene backend for compositors without a dedicated integration.
+/// Output discovery through standard Wayland metadata.
 pub(super) struct Generic {
     outputs: Vec<Output>,
 }
