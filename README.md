@@ -21,7 +21,7 @@ Latchshot targets compositors that expose the Wayland protocols needed by its cu
 | Compositor | Status | Selection support |
 | --- | --- | --- |
 | [Niri (with a customized fork)](https://github.com/so1ve/niri/tree/feat/latchshot-support) | Supported | Window snapping and free-form regions |
-| [Upstream Niri](https://github.com/niri-wm/niri) | Supported | Window snapping and free-form regions |
+| [Upstream Niri](https://github.com/niri-wm/niri) | Supported but limited | Window snapping and free-form regions |
 | [Sway](https://github.com/swaywm/sway) | Supported | Window snapping and free-form regions |
 | [Hyprland](https://github.com/hyprwm/Hyprland) | Supported | Window snapping and free-form regions |
 | [Mango](https://github.com/mangowm/mango) | Supported | Window snapping and free-form regions |
@@ -29,7 +29,9 @@ Latchshot targets compositors that expose the Wayland protocols needed by its cu
 | KDE Plasma | Intentionally unsupported | — |
 | GNOME | Intentionally unsupported | — |
 
-The `generic` backend is selected automatically for unknown compositors. When upstream Niri rejects the custom `WindowGeometries` request, Latchshot reconstructs visible window positions from standard Niri IPC layout metadata and the frozen output pixels. If an output cannot be resolved unambiguously, window snapping is disabled for that output rather than guessing.
+The `generic` backend is selected automatically for unknown compositors.
+
+When upstream Niri rejects the custom `WindowGeometries` request, Latchshot reconstructs visible window positions from standard Niri IPC layout metadata and the frozen output pixels. **If an output cannot be resolved unambiguously, window snapping is disabled for that output rather than guessing.**
 
 KDE Plasma and GNOME remain intentionally out of scope because Latchshot targets this protocol stack rather than portal- or desktop-shell-specific screenshot flows.
 
