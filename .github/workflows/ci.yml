@@ -12,3 +12,4 @@ jobs:
     with:
       toolchain: stable
       runs-on-matrix: '"ubuntu-latest"'
+      setup: .github/actions/setup-rust-ci

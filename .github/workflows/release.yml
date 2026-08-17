@@ -15,9 +15,11 @@ jobs:
     uses: so1ve/workflows/.github/workflows/rust-release.yml@v1
     with:
       command: release-pr
+      setup: .github/actions/setup-rust-ci
 
   release:
     name: Release
     uses: so1ve/workflows/.github/workflows/rust-release.yml@v1
     with:
       command: release
+      setup: .github/actions/setup-rust-ci
