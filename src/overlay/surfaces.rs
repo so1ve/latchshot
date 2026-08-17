@@ -12,20 +12,14 @@ use wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use wayland_protocols::wp::viewporter::client::wp_viewporter::WpViewporter;
 
 use super::highlight::PendingReveal;
-use super::render::{
-    BORDER_WIDTH, CORNER_RADIUS, Corner, CornerMask, DIM_FACTOR, border_pixel_with_alpha,
-    copy_frame, multiply_channel,
-};
+use super::render::{copy_frame, multiply_channel};
 use super::session::{FramePlan, State};
 use crate::capture::OutputFrame;
 use crate::{OutputId, Point, Rect};
 
-const CORNERS: [Corner; 4] = [
-    Corner::TopLeft,
-    Corner::TopRight,
-    Corner::BottomLeft,
-    Corner::BottomRight,
-];
+const BORDER_WIDTH: i32 = 2;
+const BORDER_PIXEL: [u8; 4] = [255, 239, 215, 255];
+const DIM_FACTOR: u8 = 140;
 
 pub(super) struct SurfaceContext<'a> {
     pub(super) compositor: &'a CompositorState,
@@ -45,7 +39,6 @@ pub(super) struct OutputOverlay {
     highlight_viewport: WpViewport,
     veil: SolidSurface,
     borders: [SolidSurface; 4],
-    corners: [CornerSurface; 4],
     pool: SlotPool,
     background: Buffer,
     highlight_buffer: Buffer,
@@ -118,70 +111,76 @@ fn projected_selection(
     (left < right && top < bottom).then_some((left, top, right, bottom))
 }
 
-/// A subsurface that can redraw while the compositor holds its other buffer.
-struct ChildSurface {
+/// A solid-color subsurface that can redraw while the compositor holds its
+/// other buffer.
+struct SolidSurface {
     subsurface: wl_subsurface::WlSubsurface,
     surface: wl_surface::WlSurface,
     viewport: WpViewport,
     buffers: [Buffer; 2],
-    width: i32,
-    height: i32,
+    pixel: Option<[u8; 4]>,
     visible: bool,
 }
 
-impl ChildSurface {
+impl SolidSurface {
     fn new(
         parent: &wl_surface::WlSurface,
         pool: &mut SlotPool,
-        size: (i32, i32),
         context: &SurfaceContext<'_>,
     ) -> Self {
         let (subsurface, surface) = child_surface(parent, context);
         let viewport = context.viewporter.get_viewport(&surface, context.qh, ());
-        let stride = size.0 * 4;
-        let first = pool
-            .create_buffer(size.0, size.1, stride, wl_shm::Format::Argb8888)
-            .unwrap()
-            .0;
-        let second = pool
-            .create_buffer(size.0, size.1, stride, wl_shm::Format::Argb8888)
-            .unwrap()
-            .0;
+        viewport.set_source(0.0, 0.0, 1.0, 1.0);
+        let buffers = std::array::from_fn(|_| {
+            pool.create_buffer(1, 1, 4, wl_shm::Format::Argb8888)
+                .unwrap()
+                .0
+        });
 
         Self {
             subsurface,
             surface,
             viewport,
-            buffers: [first, second],
-            width: size.0,
-            height: size.1,
+            buffers,
+            pixel: None,
             visible: false,
         }
     }
 
-    fn layout(&mut self, position: (i32, i32), destination: (i32, i32)) {
-        self.viewport.set_destination(destination.0, destination.1);
+    fn show(
+        &mut self,
+        pool: &mut SlotPool,
+        position: (i32, i32),
+        size: (i32, i32),
+        pixel: [u8; 4],
+    ) {
+        self.viewport.set_destination(size.0, size.1);
         self.subsurface.set_position(position.0, position.1);
-    }
+        if self.visible && self.pixel == Some(pixel) {
+            self.surface.commit();
 
-    /// Repaints after [`Self::ready`] confirms that a buffer is available.
-    fn redraw(&mut self, pool: &mut SlotPool, fill: impl FnOnce(&mut [u8])) {
+            return;
+        }
+
         let buffer = self
             .buffers
             .iter()
             .find(|buffer| buffer.canvas(pool).is_some())
             .unwrap();
-        fill(buffer.canvas(pool).unwrap());
+        buffer.canvas(pool).unwrap().copy_from_slice(&pixel);
         buffer.attach_to(&self.surface).unwrap();
-        damage(&self.surface, self.width, self.height);
+        damage(&self.surface, 1, 1);
         self.surface.commit();
+        self.pixel = Some(pixel);
         self.visible = true;
     }
 
-    fn ready(&self, pool: &mut SlotPool) -> bool {
-        self.buffers
-            .iter()
-            .any(|buffer| buffer.canvas(pool).is_some())
+    fn ready(&self, pool: &mut SlotPool, pixel: [u8; 4]) -> bool {
+        (self.visible && self.pixel == Some(pixel))
+            || self
+                .buffers
+                .iter()
+                .any(|buffer| buffer.canvas(pool).is_some())
     }
 
     fn hide(&mut self) {
@@ -193,124 +192,9 @@ impl ChildSurface {
     }
 }
 
-impl Drop for ChildSurface {
+impl Drop for SolidSurface {
     fn drop(&mut self) {
         self.viewport.destroy();
-    }
-}
-
-struct SolidSurface {
-    child: ChildSurface,
-    pixel: Option<[u8; 4]>,
-}
-
-impl SolidSurface {
-    fn new(
-        parent: &wl_surface::WlSurface,
-        pool: &mut SlotPool,
-        context: &SurfaceContext<'_>,
-    ) -> Self {
-        let child = ChildSurface::new(parent, pool, (1, 1), context);
-        child.viewport.set_source(0.0, 0.0, 1.0, 1.0);
-
-        Self { child, pixel: None }
-    }
-
-    fn show(
-        &mut self,
-        pool: &mut SlotPool,
-        position: (i32, i32),
-        size: (i32, i32),
-        pixel: [u8; 4],
-    ) {
-        if size.0 <= 0 || size.1 <= 0 {
-            self.hide();
-
-            return;
-        }
-
-        self.child.layout(position, size);
-        if self.child.visible && self.pixel == Some(pixel) {
-            self.child.surface.commit();
-
-            return;
-        }
-
-        self.child
-            .redraw(pool, |canvas| canvas.copy_from_slice(&pixel));
-        self.pixel = Some(pixel);
-    }
-
-    fn ready(&self, pool: &mut SlotPool, size: (i32, i32), pixel: [u8; 4]) -> bool {
-        if size.0 <= 0 || size.1 <= 0 {
-            return true;
-        }
-
-        (self.child.visible && self.pixel == Some(pixel)) || self.child.ready(pool)
-    }
-
-    fn hide(&mut self) {
-        self.child.hide();
-    }
-}
-
-struct CornerSurface {
-    child: ChildSurface,
-    mask: CornerMask,
-    opacity: Option<u8>,
-}
-
-impl CornerSurface {
-    fn new(
-        parent: &wl_surface::WlSurface,
-        pool: &mut SlotPool,
-        mask: CornerMask,
-        context: &SurfaceContext<'_>,
-    ) -> Self {
-        let size = mask.size() as i32;
-        let child = ChildSurface::new(parent, pool, (size, size), context);
-        child
-            .viewport
-            .set_source(0.0, 0.0, f64::from(size), f64::from(size));
-
-        Self {
-            child,
-            mask,
-            opacity: None,
-        }
-    }
-
-    fn show(&mut self, pool: &mut SlotPool, position: (i32, i32), size: i32, opacity: u8) {
-        if size <= 0 {
-            self.hide();
-
-            return;
-        }
-
-        self.child.layout(position, (size, size));
-        if self.child.visible && self.opacity == Some(opacity) {
-            self.child.surface.commit();
-
-            return;
-        }
-
-        let mask = &self.mask;
-        self.child.redraw(pool, |canvas| {
-            mask.render(opacity, canvas);
-        });
-        self.opacity = Some(opacity);
-    }
-
-    fn ready(&self, pool: &mut SlotPool, size: i32, opacity: u8) -> bool {
-        if size <= 0 {
-            return true;
-        }
-
-        (self.child.visible && self.opacity == Some(opacity)) || self.child.ready(pool)
-    }
-
-    fn hide(&mut self) {
-        self.child.hide();
     }
 }
 
@@ -375,15 +259,6 @@ impl OutputOverlay {
         let veil = SolidSurface::new(layer.wl_surface(), &mut pool, context);
         let borders =
             std::array::from_fn(|_| SolidSurface::new(layer.wl_surface(), &mut pool, context));
-        let scale = frame.scale();
-        let corners = std::array::from_fn(|index| {
-            CornerSurface::new(
-                layer.wl_surface(),
-                &mut pool,
-                CornerMask::new(scale, CORNERS[index]),
-                context,
-            )
-        });
         layer.commit();
 
         Self {
@@ -397,7 +272,6 @@ impl OutputOverlay {
             highlight_viewport,
             veil,
             borders,
-            corners,
             pool,
             background,
             highlight_buffer: highlight,
@@ -511,97 +385,48 @@ impl OutputOverlay {
             let has_bottom = global_selection.bottom() <= self.logical_geometry.bottom();
             let has_left = global_selection.left() >= self.logical_geometry.left();
             let has_right = global_selection.right() <= self.logical_geometry.right();
-            let horizontal_border_width = (BORDER_WIDTH.round().max(1.0) as i32).min(target_height);
-            let vertical_border_width = (BORDER_WIDTH.round().max(1.0) as i32).min(target_width);
-            let radius = (CORNER_RADIUS.round() as i32)
-                .min(target_width / 2)
-                .min(target_height / 2);
+            let horizontal_border_width = BORDER_WIDTH.min(target_height);
+            let vertical_border_width = BORDER_WIDTH.min(target_width);
             let opacity = (reveal * 255.0).round() as u8;
-            let border_pixel = border_pixel_with_alpha(opacity);
+            let border_pixel = BORDER_PIXEL.map(|channel| multiply_channel(channel, opacity));
             let veil_pixel = [
                 0,
                 0,
                 0,
                 (f32::from(255 - DIM_FACTOR) * (1.0 - reveal)).round() as u8,
             ];
-            let corner_visibility = [
-                has_top && has_left,
-                has_top && has_right,
-                has_bottom && has_left,
-                has_bottom && has_right,
-            ];
-            let [top_left, top_right, bottom_left, bottom_right] = corner_visibility;
             let border_layout = [
                 (
-                    (left + i32::from(top_left) * radius, top),
-                    (
-                        target_width - i32::from(top_left) * radius - i32::from(top_right) * radius,
-                        horizontal_border_width,
-                    ),
+                    (left, top),
+                    (target_width, horizontal_border_width),
                     has_top,
                 ),
                 (
-                    (
-                        left + i32::from(bottom_left) * radius,
-                        bottom - horizontal_border_width,
-                    ),
-                    (
-                        target_width
-                            - i32::from(bottom_left) * radius
-                            - i32::from(bottom_right) * radius,
-                        horizontal_border_width,
-                    ),
+                    (left, bottom - horizontal_border_width),
+                    (target_width, horizontal_border_width),
                     has_bottom,
                 ),
                 (
-                    (left, top + i32::from(top_left) * radius),
-                    (
-                        vertical_border_width,
-                        target_height
-                            - i32::from(top_left) * radius
-                            - i32::from(bottom_left) * radius,
-                    ),
+                    (left, top),
+                    (vertical_border_width, target_height),
                     has_left,
                 ),
                 (
-                    (
-                        right - vertical_border_width,
-                        top + i32::from(top_right) * radius,
-                    ),
-                    (
-                        vertical_border_width,
-                        target_height
-                            - i32::from(top_right) * radius
-                            - i32::from(bottom_right) * radius,
-                    ),
+                    (right - vertical_border_width, top),
+                    (vertical_border_width, target_height),
                     has_right,
                 ),
             ];
-            let corner_layout = [
-                ((left, top), top_left),
-                ((right - radius, top), top_right),
-                ((left, bottom - radius), bottom_left),
-                ((right - radius, bottom - radius), bottom_right),
-            ];
 
-            let veil_ready =
-                self.veil
-                    .ready(&mut self.pool, (target_width, target_height), veil_pixel);
+            let veil_ready = self.veil.ready(&mut self.pool, veil_pixel);
             let borders_ready =
                 self.borders
                     .iter()
                     .zip(border_layout)
-                    .all(|(border, (_, size, visible))| {
-                        !visible || border.ready(&mut self.pool, size, border_pixel)
+                    .all(|(border, (_, _, visible))| {
+                        !visible || border.ready(&mut self.pool, border_pixel)
                     });
-            let corners_ready =
-                self.corners
-                    .iter()
-                    .zip(corner_layout)
-                    .all(|(corner, (_, visible))| {
-                        !visible || corner.ready(&mut self.pool, radius, opacity)
-                    });
-            if !(veil_ready && borders_ready && corners_ready) {
+            if !(veil_ready && borders_ready) {
                 return;
             }
 
@@ -632,14 +457,6 @@ impl OutputOverlay {
                     border.show(&mut self.pool, position, size, border_pixel);
                 } else {
                     border.hide();
-                }
-            }
-
-            for (corner, (position, visible)) in self.corners.iter_mut().zip(corner_layout) {
-                if visible {
-                    corner.show(&mut self.pool, position, radius, opacity);
-                } else {
-                    corner.hide();
                 }
             }
 
@@ -698,7 +515,6 @@ impl OutputOverlay {
         }
         self.veil.hide();
         self.borders.iter_mut().for_each(SolidSurface::hide);
-        self.corners.iter_mut().for_each(CornerSurface::hide);
     }
 }
 
