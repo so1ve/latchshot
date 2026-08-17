@@ -142,6 +142,12 @@ Print the discovered scene as JSON for diagnostics:
 latchshot --windows
 ```
 
+Force Niri's standard-IPC window reconstruction path for diagnostics:
+
+```sh
+LATCHSHOT_NIRI_FORCE_FALLBACK=1 latchshot
+```
+
 Run `latchshot --help` for all options. Set `RUST_LOG=latchshot=debug` for additional diagnostics.
 
 ## Library Usage

@@ -1,6 +1,7 @@
 // FIXME: Keep the local wire types aligned with upstream Niri IPC and the
 // custom fork.
 use std::collections::HashMap;
+use std::env;
 
 use anyhow::{Context, Result};
 use log::warn;
@@ -41,17 +42,23 @@ impl Niri {
 
 impl SceneReader for Niri {
     fn scene(&mut self) -> Result<Scene> {
-        let geometries = match self.request_raw(Request::WindowGeometries)? {
-            Ok(Response::WindowGeometries(geometries)) => Some(geometries),
-            Ok(_) => panic!("Niri returned an unexpected response to WindowGeometries"),
-            Err(error) => {
-                warn!(
-                    "Niri rejected WindowGeometries ({error}); reconstructing window geometry from standard IPC"
-                );
+        let geometries = if env::var_os("LATCHSHOT_NIRI_FORCE_FALLBACK").is_some() {
+            warn!("forcing window geometry reconstruction from standard Niri IPC");
 
-                // FIXME: Remove the fallback module, state, and override once upstream Niri
-                // exposes exact on-screen window geometry.
-                None
+            None
+        } else {
+            match self.request_raw(Request::WindowGeometries)? {
+                Ok(Response::WindowGeometries(geometries)) => Some(geometries),
+                Ok(_) => panic!("Niri returned an unexpected response to WindowGeometries"),
+                Err(error) => {
+                    warn!(
+                        "Niri rejected WindowGeometries ({error}); reconstructing window geometry from standard IPC"
+                    );
+
+                    // FIXME: Remove the fallback module and state once upstream Niri exposes
+                    // exact on-screen window geometry.
+                    None
+                }
             }
         };
         let Response::Outputs(outputs) = self.request(Request::Outputs)? else {
