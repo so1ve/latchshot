@@ -15,6 +15,7 @@ use crate::{DesktopFrame, Output, OutputFrame, Rect, Scene, Window};
 
 const EDGE_SAMPLES: u32 = 96;
 const MIN_EDGE_STRENGTH: f64 = 12.0;
+const MIN_VISIBLE_WINDOW_FRACTION: f64 = 0.01;
 
 pub(super) struct Snapshot {
     windows: Vec<IpcWindow>,
@@ -307,6 +308,13 @@ fn window_geometry(
         height,
     )
     .intersection(output.logical_geometry)?;
+    // A sub-percent strip cannot be distinguished reliably from an output-edge
+    // border or gap, and is not a useful window selection target.
+    if geometry.width() < width * MIN_VISIBLE_WINDOW_FRACTION
+        || geometry.height() < height * MIN_VISIBLE_WINDOW_FRACTION
+    {
+        return None;
+    }
 
     Some(Window { geometry })
 }
@@ -758,6 +766,36 @@ mod tests {
                     geometry: Rect::new(552.0, 252.0, 448.0, 396.0),
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn ignores_a_barely_visible_ambiguous_column() {
+        let output = output(1000.0, 500.0);
+        let scene = Scene {
+            outputs: vec![output.clone()],
+            windows: Vec::new(),
+        };
+        let mut image = RgbaImage::from_pixel(1000, 500, Rgba([10, 10, 10, 255]));
+        paint(
+            &mut image,
+            Rect::new(5.0, 50.0, 990.0, 400.0),
+            Rgba([80, 180, 80, 255]),
+        );
+        let desktop = frame(image, output.logical_geometry);
+        let snapshot = snapshot(
+            vec![
+                ipc_window(1, 1, (990.0, 400.0), (986.0, 396.0)),
+                ipc_window(2, 2, (990.0, 400.0), (986.0, 396.0)),
+            ],
+            Some(1),
+        );
+
+        assert_eq!(
+            reconstruct(&snapshot, &scene, &desktop),
+            vec![Window {
+                geometry: Rect::new(107.0, 252.0, 986.0, 396.0),
+            }]
         );
     }
 
