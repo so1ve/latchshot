@@ -109,6 +109,7 @@ During selection:
 - Move the pointer to highlight the window underneath it.
 - Left-click a highlighted window to capture it.
 - Left-drag to select an arbitrary region.
+- Press <kbd>F</kbd> to capture the output under the pointer.
 - Press <kbd>Esc</kbd> or right-click to cancel.
 
 Save directly to a file:

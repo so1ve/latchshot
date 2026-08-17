@@ -1,8 +1,9 @@
 //! UI-independent window and region selection.
 //!
 //! [`Selector`] can be driven by a custom frontend instead of the built-in
-//! [`crate::overlay`] UI. Feed it pointer movement, press, and release events,
-//! then render [`Selector::target_geometry`] or [`Selector::region`].
+//! [`crate::overlay`] UI. Feed it pointer events or call
+//! [`Selector::select_fullscreen`], then render [`Selector::target_geometry`]
+//! or [`Selector::region`].
 
 use crate::{Point, Rect, Scene};
 
@@ -35,7 +36,7 @@ enum State {
     },
 }
 
-/// Selection state machine for pointer-driven frontends.
+/// Selection state machine for interactive frontends.
 pub struct Selector {
     scene: Scene,
     state: State,
@@ -78,6 +79,24 @@ impl Selector {
         };
 
         Some(Rect::from_points(origin, pointer))
+    }
+
+    /// Selects the output containing the pointer.
+    #[must_use]
+    pub fn select_fullscreen(&self) -> Option<SelectionResult> {
+        let pointer = match self.state {
+            State::Hover { pointer, .. } | State::Dragging { pointer, .. } => pointer,
+            State::Pressed { origin, .. } => origin,
+            State::Waiting => return None,
+        };
+        let geometry = self
+            .scene
+            .outputs
+            .iter()
+            .find(|output| output.logical_geometry.contains(pointer))?
+            .logical_geometry;
+
+        Some(SelectionResult::Selected(Selection::Region(geometry)))
     }
 
     pub fn pointer_moved(&mut self, pointer: Point) {
@@ -185,6 +204,29 @@ mod tests {
             selector.release(),
             Some(SelectionResult::Selected(Selection::Region(Rect::new(
                 150.0, 120.0, 50.0, 80.0
+            ))))
+        );
+    }
+
+    #[test]
+    fn fullscreen_selects_the_output_under_the_pointer() {
+        let mut left = output("left", 1.0);
+        left.logical_geometry = Rect::new(-1280.0, 100.0, 1280.0, 720.0);
+        let mut right = output("right", 1.0);
+        right.logical_geometry = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+        let mut selector = Selector::new(
+            Scene {
+                outputs: vec![left, right],
+                windows: Vec::new(),
+            },
+            4.0,
+        );
+        selector.pointer_moved(Point::new(100.0, 100.0));
+
+        assert_eq!(
+            selector.select_fullscreen(),
+            Some(SelectionResult::Selected(Selection::Region(Rect::new(
+                0.0, 0.0, 1920.0, 1080.0
             ))))
         );
     }

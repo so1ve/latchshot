@@ -395,8 +395,10 @@ impl KeyboardHandler for State {
         _serial: u32,
         event: KeyEvent,
     ) {
-        if event.keysym == Keysym::Escape {
-            self.result = Some(SelectionResult::Cancelled);
+        match event.keysym {
+            Keysym::Escape => self.result = Some(SelectionResult::Cancelled),
+            Keysym::F | Keysym::f => self.result = self.selector.select_fullscreen(),
+            _ => {}
         }
     }
 
