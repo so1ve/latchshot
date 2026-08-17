@@ -138,6 +138,10 @@ latchshot --windows
 
 Run `latchshot --help` for all options. Set `RUST_LOG=latchshot=debug` for additional diagnostics.
 
+## Library Usage
+
+Latchshot can also be used as a Rust library. See the [API documentation on docs.rs](https://docs.rs/latchshot) for details.
+
 ## License
 
 [MIT](LICENSE). Made with ♥️ by [Ray](https://github.com/so1ve).
