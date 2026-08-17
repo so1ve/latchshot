@@ -2,6 +2,10 @@
 
 A lightweight yet intelligent window-aware screenshot tool for Wayland. Latchshot freezes the current desktop, snaps to the window under the pointer, and falls back to a freely drawn region when you drag.
 
+## Demo
+
+<video src="assets/latchshot-demo.mp4" controls></video>
+
 ## Requirements
 
 Latchshot targets compositors that expose the Wayland protocols needed by its custom overlay. The compositor must support:
