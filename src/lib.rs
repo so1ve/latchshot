@@ -12,19 +12,17 @@
 //! same frame to which the selected logical geometry refers.
 //!
 //! ```no_run
-//! use anyhow::{Context, Result};
+//! use anyhow::Result;
 //! use latchshot::output::Target;
 //! use latchshot::overlay::select;
-//! use latchshot::{CaptureBackend, Compositor, Selection, SelectionResult};
+//! use latchshot::{Compositor, FrameCapture, Selection, SelectionResult, WaylandCapture};
 //!
 //! fn main() -> Result<()> {
 //!     let compositor = Compositor::detect().unwrap_or(Compositor::Generic);
 //!     let mut compositor = compositor.connect()?;
 //!     let scene = compositor.scene()?;
 //!
-//!     let capture =
-//!         CaptureBackend::detect().context("no supported capture protocol was detected")?;
-//!     let mut capture = capture.connect()?;
+//!     let mut capture = WaylandCapture::connect()?;
 //!     let frame = capture.capture(&scene)?;
 //!
 //!     let (result, frame) = select(scene, frame, true)?;
@@ -54,7 +52,7 @@ pub mod scene;
 pub mod selection;
 
 pub use animation::AnimatedRect;
-pub use capture::{CaptureBackend, DesktopFrame, FrameCapture, OutputFrame};
+pub use capture::{DesktopFrame, FrameCapture, OutputFrame, WaylandCapture};
 pub use compositor::{Compositor, SceneReader};
 pub use geometry::{Point, Rect, Size};
 pub use scene::{Output, OutputId, OutputTransform, Scene, Window};

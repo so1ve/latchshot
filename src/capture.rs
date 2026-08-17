@@ -1,20 +1,13 @@
 //! Desktop frame capture and logical-coordinate cropping.
 //!
-//! Use [`CaptureBackend`] for the built-in Wayland protocol implementations,
-//! or implement [`FrameCapture`] to provide frames from another source.
+//! Use [`WaylandCapture`] for the built-in Wayland protocol implementation, or
+//! implement [`FrameCapture`] to provide frames from another source.
 
-use std::fmt;
-
-use anyhow::Result;
-use clap::ValueEnum;
+use anyhow::{Context, Result};
 use image::{RgbaImage, imageops};
-use log::{debug, warn};
-use wlr_capture::wl::advertised_globals;
+use libwayshot::WayshotConnection;
 
 use crate::{OutputId, Rect, Scene};
-
-mod image_copy_capture;
-mod screencopy;
 
 /// A source of frozen desktop frames for a compositor [`Scene`].
 pub trait FrameCapture {
@@ -22,53 +15,51 @@ pub trait FrameCapture {
     fn capture(&mut self, scene: &Scene) -> Result<DesktopFrame>;
 }
 
-/// Capture backends, preferred in detection order.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-pub enum CaptureBackend {
-    ImageCopyCapture,
-    Screencopy,
+/// Wayland frame capture.
+///
+/// [`ext-image-copy-capture-v1`](https://wayland.app/protocols/ext-image-copy-capture-v1)
+/// is preferred when available, with
+/// [`wlr-screencopy`](https://wayland.app/protocols/wlr-screencopy-unstable-v1)
+/// used as a fallback.
+pub struct WaylandCapture {
+    connection: WayshotConnection,
 }
 
-impl fmt::Display for CaptureBackend {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.to_possible_value().unwrap().get_name())
+impl WaylandCapture {
+    /// Connects to the current Wayland session.
+    pub fn connect() -> Result<Self> {
+        Ok(Self {
+            connection: WayshotConnection::new()?,
+        })
     }
 }
 
-impl CaptureBackend {
-    /// Detects the best available capture backend from the advertised Wayland
-    /// globals, preferring the new image-copy protocol over screencopy.
-    #[must_use]
-    pub fn detect() -> Option<Self> {
-        let Ok(globals) = advertised_globals() else {
-            warn!("failed to enumerate Wayland globals");
+impl FrameCapture for WaylandCapture {
+    fn capture(&mut self, scene: &Scene) -> Result<DesktopFrame> {
+        let wayland_outputs = self.connection.get_all_outputs();
+        let outputs = scene
+            .outputs
+            .iter()
+            .map(|output| {
+                let wayland_output = wayland_outputs
+                    .iter()
+                    .find(|candidate| candidate.name == output.id.as_str())
+                    .with_context(|| format!("Wayland did not advertise output {}", output.id))?;
+                let image = self
+                    .connection
+                    .screenshot_single_output(wayland_output, false)
+                    .with_context(|| format!("failed to capture output {}", output.id))?
+                    .into_rgba8();
 
-            return None;
-        };
-        let has = |interface: &str| globals.iter().any(|(name, _)| name == interface);
+                Ok(OutputFrame {
+                    output: output.id.clone(),
+                    logical_geometry: output.logical_geometry,
+                    image,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
 
-        if has("ext_image_copy_capture_manager_v1") {
-            debug!("image-copy capture protocol advertised");
-
-            return Some(Self::ImageCopyCapture);
-        }
-        if has("zwlr_screencopy_manager_v1") {
-            debug!("wlr-screencopy protocol advertised");
-
-            return Some(Self::Screencopy);
-        }
-
-        None
-    }
-
-    /// Connects to this capture backend.
-    pub fn connect(self) -> Result<Box<dyn FrameCapture>> {
-        match self {
-            Self::ImageCopyCapture => {
-                Ok(Box::new(image_copy_capture::ImageCopyCapture::connect()?))
-            }
-            Self::Screencopy => Ok(Box::new(screencopy::Screencopy::connect()?)),
-        }
+        Ok(DesktopFrame { outputs })
     }
 }
 

@@ -19,7 +19,6 @@ serde_json = "1.0.149"
 smithay-client-toolkit = { version = "0.21.1", default-features = false, features = ["xkbcommon"] }
 wayland-client = "0.31.15"
 wayland-protocols = { version = "0.32.13", features = ["client"] }
-wlr-capture = { version = "1.5", default-features = false }
 
 [profile.release]
 codegen-units = 1

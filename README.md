@@ -123,11 +123,10 @@ Write PNG data to standard output:
 latchshot --stdout > screenshot.png
 ```
 
-Force a capture backend or disable animation:
+To disable animation:
 
 ```sh
-latchshot --capture screencopy
-latchshot --capture image-copy-capture --no-animation
+latchshot --no-animation
 ```
 
 Print the discovered scene as JSON for diagnostics:

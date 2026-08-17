@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use clap::{ArgGroup, Parser};
 use latchshot::output::{Target, notify};
 use latchshot::overlay::select;
-use latchshot::{CaptureBackend, Compositor, Selection, SelectionResult};
+use latchshot::{Compositor, FrameCapture, Selection, SelectionResult, WaylandCapture};
 use log::info;
 
 #[derive(Parser)]
@@ -35,10 +35,6 @@ struct Args {
     /// Compositor backend (auto-detected, or generic when unknown)
     #[arg(long)]
     compositor: Option<Compositor>,
-
-    /// Capture backend (auto-detected when omitted)
-    #[arg(long)]
-    capture: Option<CaptureBackend>,
 }
 
 fn main() -> Result<()> {
@@ -68,12 +64,7 @@ fn main() -> Result<()> {
         bail!("the compositor reported no active outputs");
     }
 
-    let capture = args
-        .capture
-        .or_else(CaptureBackend::detect)
-        .context("failed to detect a supported capture backend; pass --capture to override")?;
-    info!("capture backend: {capture}");
-    let mut capture = capture.connect()?;
+    let mut capture = WaylandCapture::connect()?;
     let frame = capture.capture(&scene)?;
     let (result, frame) = select(scene, frame, !args.no_animation)?;
     let selection = match result {
