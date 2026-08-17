@@ -20,10 +20,11 @@
 //! fn main() -> Result<()> {
 //!     let compositor = Compositor::detect().unwrap_or(Compositor::Generic);
 //!     let mut compositor = compositor.connect()?;
-//!     let scene = compositor.scene()?;
+//!     let mut scene = compositor.scene()?;
 //!
 //!     let mut capture = WaylandCapture::connect()?;
 //!     let frame = capture.capture(&scene)?;
+//!     compositor.refine_scene(&mut scene, &frame)?;
 //!
 //!     let (result, frame) = select(scene, frame, true)?;
 //!     let selection = match result {

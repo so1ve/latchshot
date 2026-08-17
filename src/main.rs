@@ -48,7 +48,14 @@ fn main() -> Result<()> {
         .unwrap_or(Compositor::Generic);
     info!("compositor backend: {compositor}");
     let mut compositor = compositor.connect()?;
-    let scene = compositor.scene()?;
+    let mut scene = compositor.scene()?;
+    if scene.outputs.is_empty() {
+        bail!("the compositor reported no active outputs");
+    }
+
+    let mut capture = WaylandCapture::connect()?;
+    let frame = capture.capture(&scene)?;
+    compositor.refine_scene(&mut scene, &frame)?;
     info!(
         "scene: {} outputs, {} windows",
         scene.outputs.len(),
@@ -60,12 +67,7 @@ fn main() -> Result<()> {
 
         return Ok(());
     }
-    if scene.outputs.is_empty() {
-        bail!("the compositor reported no active outputs");
-    }
 
-    let mut capture = WaylandCapture::connect()?;
-    let frame = capture.capture(&scene)?;
     let (result, frame) = select(scene, frame, !args.no_animation)?;
     let selection = match result {
         SelectionResult::Selected(selection) => selection,
