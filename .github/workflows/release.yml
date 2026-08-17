@@ -1,0 +1,23 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  id-token: write
+  pull-requests: write
+
+jobs:
+  release-pr:
+    name: Create Release PR
+    uses: so1ve/workflows/.github/workflows/rust-release.yml@v1
+    with:
+      command: release-pr
+
+  release:
+    name: Release
+    uses: so1ve/workflows/.github/workflows/rust-release.yml@v1
+    with:
+      command: release
