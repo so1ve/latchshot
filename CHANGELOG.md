@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3](https://github.com/so1ve/latchshot/compare/v0.2.2...v0.2.3) - 2026-08-19
+
+### Added
+
+- *(niri)* add env var to force fallback reconstruction
+
+### Fixed
+
+- avoid running multiple latchshot instances
+- *(niri)* ignore spurious edge fragments in fallback
+- *(niri)* recover partially offscreen windows in fallback
+
+### Other
+
+- add ai usage disclosure
+- mention limitations about upstream niri support
+- use webp demo
+- update demo video
+- add demo
+
 ## [0.2.2](https://github.com/so1ve/latchshot/compare/v0.2.1...v0.2.2) - 2026-08-17
 
 ### Fixed
