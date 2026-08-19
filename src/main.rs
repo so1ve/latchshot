@@ -1,6 +1,8 @@
+use std::env;
+use std::fs::{File, OpenOptions, TryLockError};
 use std::path::PathBuf;
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use clap::{ArgGroup, Parser};
 use latchshot::output::{Target, notify};
 use latchshot::overlay::select;
@@ -41,6 +43,11 @@ fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let args = Args::parse();
+    let Some(capture_lock) = try_acquire_capture_lock()? else {
+        info!("another latchshot capture is already in progress; exiting");
+
+        return Ok(());
+    };
 
     let compositor = args
         .compositor
@@ -69,6 +76,8 @@ fn main() -> Result<()> {
     }
 
     let (result, frame) = select(scene, frame, !args.no_animation)?;
+    drop(capture_lock);
+
     let selection = match result {
         SelectionResult::Selected(selection) => selection,
         SelectionResult::Cancelled => return Ok(()),
@@ -94,4 +103,24 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn try_acquire_capture_lock() -> Result<Option<File>> {
+    let runtime_dir = env::var_os("XDG_RUNTIME_DIR").context("XDG_RUNTIME_DIR is not set")?;
+    let path = PathBuf::from(runtime_dir).join("latchshot.lock");
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&path)
+        .with_context(|| format!("failed to open capture lock {}", path.display()))?;
+
+    match file.try_lock() {
+        Ok(()) => Ok(Some(file)),
+        Err(TryLockError::WouldBlock) => Ok(None),
+        Err(TryLockError::Error(error)) => {
+            Err(error).with_context(|| format!("failed to acquire capture lock {}", path.display()))
+        }
+    }
 }
