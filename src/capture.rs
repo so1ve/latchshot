@@ -145,8 +145,8 @@ impl DesktopFrame {
             .reduce(f64::max)
             .unwrap();
         let mut result = RgbaImage::new(
-            (region.width() * scale).ceil() as u32,
-            (region.height() * scale).ceil() as u32,
+            snap_pixel_boundary(region.width() * scale).ceil() as u32,
+            snap_pixel_boundary(region.height() * scale).ceil() as u32,
         );
 
         for (frame, intersection) in frames {
@@ -195,13 +195,26 @@ struct PixelRect {
     height: u32,
 }
 
+/// Removes arithmetic noise at integral physical-pixel boundaries while
+/// preserving genuinely fractional edges for outward rounding.
+fn snap_pixel_boundary(value: f64) -> f64 {
+    let nearest = value.round();
+    let tolerance = 8.0 * f64::EPSILON * value.abs().max(1.0);
+
+    if (value - nearest).abs() <= tolerance {
+        nearest
+    } else {
+        value
+    }
+}
+
 impl PixelRect {
     /// Projects a logical rectangle into pixel coordinates, rounding outward.
     fn from_logical(inner: Rect, outer: Rect, scale_x: f64, scale_y: f64) -> Self {
-        let left = ((inner.left() - outer.left()) * scale_x).floor() as u32;
-        let top = ((inner.top() - outer.top()) * scale_y).floor() as u32;
-        let right = ((inner.right() - outer.left()) * scale_x).ceil() as u32;
-        let bottom = ((inner.bottom() - outer.top()) * scale_y).ceil() as u32;
+        let left = snap_pixel_boundary((inner.left() - outer.left()) * scale_x).floor() as u32;
+        let top = snap_pixel_boundary((inner.top() - outer.top()) * scale_y).floor() as u32;
+        let right = snap_pixel_boundary((inner.right() - outer.left()) * scale_x).ceil() as u32;
+        let bottom = snap_pixel_boundary((inner.bottom() - outer.top()) * scale_y).ceil() as u32;
 
         Self {
             x: left,
@@ -332,5 +345,21 @@ mod tests {
         assert_eq!(image.dimensions(), (6, 6));
         assert_eq!(*image.get_pixel(0, 0), Rgba([0, 0, 0, 255]));
         assert_eq!(*image.get_pixel(5, 0), Rgba([5, 0, 0, 255]));
+    }
+
+    #[test]
+    fn pixel_aligned_crop_ignores_floating_point_noise() {
+        let desktop = DesktopFrame {
+            outputs: vec![OutputFrame {
+                output: OutputId::new("fractional"),
+                logical_geometry: Rect::new(0.0, 0.0, 1.0, 1028.5714285714287),
+                image: RgbaImage::from_fn(1, 1800, |_, y| Rgba([y as u8, 0, 0, 255])),
+            }],
+        };
+
+        let image = desktop.crop(Rect::new(0.0, 46.285714285714285, 1.0, 974.8571428571428));
+
+        assert_eq!(image.dimensions(), (1, 1706));
+        assert_eq!(*image.get_pixel(0, 0), Rgba([81, 0, 0, 255]));
     }
 }
