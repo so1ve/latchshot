@@ -393,13 +393,8 @@ impl KeyboardHandler for State {
         _qh: &QueueHandle<Self>,
         _keyboard: &wl_keyboard::WlKeyboard,
         _serial: u32,
-        event: KeyEvent,
+        _event: KeyEvent,
     ) {
-        match event.keysym {
-            Keysym::Escape => self.result = Some(SelectionResult::Cancelled),
-            Keysym::F | Keysym::f => self.result = self.selector.select_fullscreen(),
-            _ => {}
-        }
     }
 
     fn repeat_key(
@@ -418,8 +413,13 @@ impl KeyboardHandler for State {
         _qh: &QueueHandle<Self>,
         _keyboard: &wl_keyboard::WlKeyboard,
         _serial: u32,
-        _event: KeyEvent,
+        event: KeyEvent,
     ) {
+        match event.keysym {
+            Keysym::Escape => self.result = Some(SelectionResult::Cancelled),
+            Keysym::F | Keysym::f => self.result = self.selector.select_fullscreen(),
+            _ => {}
+        }
     }
 
     fn update_modifiers(
@@ -467,11 +467,6 @@ impl PointerHandler for State {
                         self.mark_all_dirty();
                     }
                 }
-                PointerEventKind::Press {
-                    button: BTN_RIGHT, ..
-                } => {
-                    self.result = Some(SelectionResult::Cancelled);
-                }
                 PointerEventKind::Release {
                     button: BTN_LEFT, ..
                 } => {
@@ -483,6 +478,11 @@ impl PointerHandler for State {
                     if before != after {
                         self.mark_all_dirty();
                     }
+                }
+                PointerEventKind::Release {
+                    button: BTN_RIGHT, ..
+                } => {
+                    self.result = Some(SelectionResult::Cancelled);
                 }
                 PointerEventKind::Leave { .. }
                 | PointerEventKind::Axis { .. }
