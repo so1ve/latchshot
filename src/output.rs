@@ -1,9 +1,9 @@
 //! PNG encoding and output destinations for captured images.
 //!
 //! [`Target`] can save an image, stream it to standard output, or hand it to
-//! `wl-copy`. [`write`] sends the same encoded PNG to any combination of
-//! targets. Applications may also use the returned `image::RgbaImage` directly
-//! instead.
+//! `wl-copy`. [`write_to_targets`] sends the same encoded PNG to any
+//! combination of targets. Applications may also use the returned
+//! `image::RgbaImage` directly instead.
 
 use std::fs;
 use std::io::{self, Write};
@@ -64,7 +64,7 @@ impl Target {
 }
 
 /// Encodes an image once and writes the PNG to every target in order.
-pub fn write(image: &RgbaImage, targets: &[Target]) -> Result<()> {
+pub fn write_to_targets(image: &RgbaImage, targets: &[Target]) -> Result<()> {
     if targets.is_empty() {
         return Ok(());
     }
@@ -118,7 +118,7 @@ mod tests {
     fn writes_to_the_exact_requested_path() {
         let path =
             std::env::temp_dir().join(format!("latchshot-output-test-{}.png", process::id()));
-        write(&sample_image(), &[Target::File(path.clone())]).unwrap();
+        write_to_targets(&sample_image(), &[Target::File(path.clone())]).unwrap();
 
         let decoded = image::open(&path).unwrap().into_rgba8();
         fs::remove_file(path).unwrap();

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
 use clap::Parser;
-use latchshot::output::{Target, notify, write};
+use latchshot::output::{Target, notify, write_to_targets};
 use latchshot::overlay::select;
 use latchshot::{Compositor, FrameCapture, Selection, SelectionResult, WaylandCapture};
 use log::info;
@@ -108,7 +108,7 @@ fn main() -> Result<()> {
 
     let image = frame.crop(geometry);
     let targets = args.targets();
-    write(&image, &targets)?;
+    write_to_targets(&image, &targets)?;
 
     for target in &targets {
         match target {

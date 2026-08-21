@@ -13,7 +13,7 @@
 //!
 //! ```no_run
 //! use anyhow::Result;
-//! use latchshot::output::{Target, write};
+//! use latchshot::output::{Target, write_to_targets};
 //! use latchshot::overlay::select;
 //! use latchshot::{Compositor, FrameCapture, Selection, SelectionResult, WaylandCapture};
 //!
@@ -35,7 +35,7 @@
 //!         Selection::Window(region) | Selection::Region(region) => region,
 //!     };
 //!
-//!     write(
+//!     write_to_targets(
 //!         &frame.crop(region),
 //!         &[Target::File("screenshot.png".into())],
 //!     )?;
