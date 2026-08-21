@@ -52,6 +52,9 @@ pub struct Output {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Window {
     pub geometry: Rect,
+    /// Stable compositor identifier used for native toplevel capture.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub identifier: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

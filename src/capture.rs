@@ -1,18 +1,25 @@
 //! Desktop frame capture and logical-coordinate cropping.
 //!
 //! Use [`WaylandCapture`] for the built-in Wayland protocol implementation, or
-//! implement [`FrameCapture`] to provide frames from another source.
+//! implement [`FrameCapture`] and [`WindowCapture`] for other sources.
 
 use anyhow::{Context, Result};
 use image::{RgbaImage, imageops};
 use libwayshot::WayshotConnection;
+use log::info;
 
-use crate::{OutputId, Rect, Scene};
+use crate::{OutputId, Rect, Scene, Window};
 
 /// A source of frozen desktop frames for a compositor [`Scene`].
 pub trait FrameCapture {
     /// Captures each output in `scene` and preserves its logical geometry.
     fn capture(&mut self, scene: &Scene) -> Result<DesktopFrame>;
+}
+
+/// Captures a selected window through a native compositor protocol.
+pub trait WindowCapture {
+    /// Returns `None` when this capture path cannot handle the window.
+    fn capture_window(&mut self, window: &Window) -> Result<Option<RgbaImage>>;
 }
 
 /// Wayland frame capture.
@@ -31,6 +38,57 @@ impl WaylandCapture {
         Ok(Self {
             connection: WayshotConnection::new()?,
         })
+    }
+}
+
+impl WindowCapture for WaylandCapture {
+    /// Captures a compositor toplevel.
+    ///
+    /// Returns `None` when the required protocol is unavailable or the window
+    /// has no matching foreign-toplevel identifier. Callers can then fall back
+    /// to cropping the frozen desktop frame.
+    fn capture_window(&mut self, window: &Window) -> Result<Option<RgbaImage>> {
+        if !self.connection.toplevel_capture_support() {
+            return Ok(None);
+        }
+        let Some(identifier) = window.identifier.as_deref() else {
+            return Ok(None);
+        };
+        let Some(toplevel) = self
+            .connection
+            .get_all_toplevels()
+            .iter()
+            .find(|toplevel| toplevel.active && toplevel.identifier == identifier)
+        else {
+            return Ok(None);
+        };
+
+        let mut image = self
+            .connection
+            .screenshot_toplevel(toplevel, false)
+            .with_context(|| format!("failed to capture Wayland toplevel {identifier}"))?
+            .into_rgba8();
+        unpremultiply_alpha(&mut image);
+        info!("captured window {identifier} through ext-image-copy-capture-v1");
+
+        Ok(Some(image))
+    }
+}
+
+/// Wayland SHM alpha formats contain premultiplied color channels, while PNG
+/// stores straight alpha.
+fn unpremultiply_alpha(image: &mut RgbaImage) {
+    for pixel in image.pixels_mut() {
+        let alpha = u16::from(pixel[3]);
+        if alpha == 0 {
+            pixel[0] = 0;
+            pixel[1] = 0;
+            pixel[2] = 0;
+        } else if alpha < 255 {
+            for channel in &mut pixel.0[..3] {
+                *channel = ((u16::from(*channel) * 255 + alpha / 2) / alpha).min(255) as u8;
+            }
+        }
     }
 }
 

@@ -5,12 +5,22 @@
 //! [`Selector::select_fullscreen`], then render [`Selector::target_geometry`]
 //! or [`Selector::region`].
 
-use crate::{Point, Rect, Scene};
+use crate::{Point, Rect, Scene, Window};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Selection {
-    Window(Rect),
+    Window(Window),
     Region(Rect),
+}
+
+impl Selection {
+    #[must_use]
+    pub const fn geometry(&self) -> Rect {
+        match self {
+            Self::Window(window) => window.geometry,
+            Self::Region(region) => *region,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -129,7 +139,7 @@ impl Selector {
             State::Pressed {
                 target: Some(target),
                 ..
-            } => Selection::Window(self.scene.windows[target].geometry),
+            } => Selection::Window(self.scene.windows[target].clone()),
             State::Dragging { origin, pointer } => {
                 let region = Rect::from_points(origin, pointer);
                 if region.width() == 0.0 || region.height() == 0.0 {
@@ -185,8 +195,8 @@ mod tests {
         selector.press();
         assert_eq!(
             selector.release(),
-            Some(SelectionResult::Selected(Selection::Window(Rect::new(
-                100.0, 100.0, 800.0, 600.0
+            Some(SelectionResult::Selected(Selection::Window(window(
+                Rect::new(100.0, 100.0, 800.0, 600.0)
             ))))
         );
     }

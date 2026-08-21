@@ -31,8 +31,8 @@ impl Socket {
         })
     }
 
-    pub(super) fn send(&mut self, request: Request) -> io::Result<Result<Response, String>> {
-        let mut message = serde_json::to_vec(&request)?;
+    pub(super) fn send(&mut self, request: &Request) -> io::Result<Result<Response, String>> {
+        let mut message = serde_json::to_vec(request)?;
         message.push(b'\n');
         self.stream.get_mut().write_all(&message)?;
 
@@ -48,17 +48,29 @@ impl Socket {
     }
 }
 
-#[derive(Clone, Copy, Serialize)]
+#[derive(Serialize)]
 pub(super) enum Request {
     Outputs,
     Workspaces,
     Windows,
     OverviewState,
     WindowGeometries,
+    Action(Action),
+}
+
+#[derive(Serialize)]
+pub(super) enum Action {
+    ScreenshotWindow {
+        id: Option<u64>,
+        write_to_disk: bool,
+        show_pointer: bool,
+        path: Option<String>,
+    },
 }
 
 #[derive(Deserialize)]
 pub(super) enum Response {
+    Handled,
     Outputs(HashMap<String, Output>),
     Workspaces(Vec<Workspace>),
     Windows(Vec<Window>),

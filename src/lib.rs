@@ -3,7 +3,7 @@
 //! Latchshot keeps scene discovery, frame capture, interactive selection, and
 //! image output as separate steps. Applications can use the complete built-in
 //! flow or replace individual steps through [`SceneReader`], [`FrameCapture`],
-//! and [`Selector`].
+//! [`WindowCapture`], and [`Selector`].
 //!
 //! # Interactive screenshot
 //!
@@ -31,9 +31,7 @@
 //!         SelectionResult::Selected(selection) => selection,
 //!         SelectionResult::Cancelled => return Ok(()),
 //!     };
-//!     let region = match selection {
-//!         Selection::Window(region) | Selection::Region(region) => region,
-//!     };
+//!     let region = selection.geometry();
 //!
 //!     write_to_targets(
 //!         &frame.crop(region),
@@ -56,7 +54,7 @@ pub mod scene;
 pub mod selection;
 
 pub use animation::AnimatedRect;
-pub use capture::{DesktopFrame, FrameCapture, OutputFrame, WaylandCapture};
+pub use capture::{DesktopFrame, FrameCapture, OutputFrame, WaylandCapture, WindowCapture};
 pub use compositor::{Compositor, SceneReader};
 pub use geometry::{Point, Rect, Size};
 pub use scene::{Output, OutputId, OutputTransform, Scene, Window};

@@ -11,5 +11,8 @@ pub fn output(id: &str, scale: f64) -> Output {
 }
 
 pub const fn window(geometry: Rect) -> Window {
-    Window { geometry }
+    Window {
+        geometry,
+        identifier: None,
+    }
 }

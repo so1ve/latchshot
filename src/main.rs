@@ -6,8 +6,10 @@ use anyhow::{Context, Result, bail};
 use clap::Parser;
 use latchshot::output::{Target, notify, write_to_targets};
 use latchshot::overlay::select;
-use latchshot::{Compositor, FrameCapture, Selection, SelectionResult, WaylandCapture};
-use log::info;
+use latchshot::{
+    Compositor, FrameCapture, Selection, SelectionResult, WaylandCapture, Window, WindowCapture,
+};
+use log::{info, warn};
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -36,6 +38,11 @@ struct Args {
     /// Disable desktop notifications
     #[arg(long)]
     no_notify: bool,
+
+    /// Crop clicked windows from the frozen desktop instead of capturing the
+    /// toplevel
+    #[arg(long)]
+    prefer_crop: bool,
 
     /// Compositor backend (auto-detected, or generic when unknown)
     #[arg(long)]
@@ -80,6 +87,7 @@ fn main() -> Result<()> {
         .or_else(Compositor::detect)
         .unwrap_or(Compositor::Generic);
     info!("compositor backend: {compositor}");
+    let mut compositor_capture = compositor.window_capturer();
     let mut compositor = compositor.connect()?;
     let mut scene = compositor.scene()?;
     if scene.outputs.is_empty() {
@@ -102,17 +110,32 @@ fn main() -> Result<()> {
     }
 
     let (result, frame) = select(scene, frame, !args.no_animation)?;
-    drop(capture_lock);
 
     let selection = match result {
         SelectionResult::Selected(selection) => selection,
         SelectionResult::Cancelled => return Ok(()),
     };
-    let geometry = match selection {
-        Selection::Window(geometry) | Selection::Region(geometry) => geometry,
-    };
+    let image = match selection {
+        Selection::Window(window) => {
+            if args.prefer_crop {
+                info!("native window capture disabled by --prefer-crop");
 
-    let image = frame.crop(geometry);
+                frame.crop(window.geometry)
+            } else {
+                capture_window(&mut capture, &mut compositor_capture, &window).unwrap_or_else(
+                    || {
+                        info!(
+                            "native window capture unavailable; cropping the frozen desktop frame"
+                        );
+                        frame.crop(window.geometry)
+                    },
+                )
+            }
+        }
+        Selection::Region(geometry) => frame.crop(geometry),
+    };
+    drop(capture_lock);
+
     let notifications_enabled = !args.no_notify;
     let targets = args.targets()?;
     write_to_targets(&image, &targets)?;
@@ -128,6 +151,28 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn capture_window(
+    capture: &mut dyn WindowCapture,
+    compositor: &mut Option<Box<dyn WindowCapture>>,
+    window: &Window,
+) -> Option<image::RgbaImage> {
+    match capture.capture_window(window) {
+        Ok(Some(image)) => return Some(image),
+        Ok(None) => {}
+        Err(error) => warn!("standard Wayland window capture failed: {error:#}"),
+    }
+
+    let compositor = compositor.as_deref_mut()?;
+    match compositor.capture_window(window) {
+        Ok(Some(image)) => Some(image),
+        Ok(None) => None,
+        Err(error) => {
+            warn!("compositor-specific window capture failed: {error:#}");
+            None
+        }
+    }
 }
 
 fn try_acquire_capture_lock() -> Result<Option<File>> {

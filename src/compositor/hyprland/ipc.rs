@@ -45,6 +45,8 @@ pub(super) struct Monitor {
 
 #[derive(Deserialize)]
 pub(super) struct Client {
+    #[serde(rename = "stableId")]
+    pub(super) stable_id: Option<String>,
     pub(super) hidden: bool,
     pub(super) visible: Option<bool>,
     pub(super) at: [i32; 2],

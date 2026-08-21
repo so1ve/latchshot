@@ -58,6 +58,7 @@ impl SceneReader for Hyprland {
                         || special_workspaces.contains(&client.workspace.id))
             })
             .map(|client| Window {
+                identifier: client.stable_id,
                 geometry: Rect::new(
                     f64::from(client.at[0]),
                     f64::from(client.at[1]),

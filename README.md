@@ -37,6 +37,23 @@ KDE Plasma and GNOME remain intentionally out of scope because Latchshot targets
 
 Copying to clipboard (the default destiniation) also requires `wl-copy` from [`wl-clipboard`](https://github.com/bugaevc/wl-clipboard).
 
+### Native window capture
+
+Clicking a highlighted window uses native toplevel capture when available,
+preserving compositor-provided transparency such as rounded corners. Latchshot
+uses Wayland's
+[`ext-image-copy-capture-v1`](https://wayland.app/protocols/ext-image-copy-capture-v1)
+with foreign-toplevel identifiers, or Niri's `ScreenshotWindow` IPC. Niri may
+also copy the intermediate image to the clipboard.
+
+If native capture is unavailable or fails, Latchshot crops the frozen desktop
+frame; pass `--prefer-crop` to enforce cropping even when the protocol is supported.
+
+The overlay remains rectangular because Wayland does not expose compositor corner
+masks. Other projects, like [HyprCapture](https://github.com/gfhdhytghd/HyprCapture),
+use compositor-specific hacks to capture rounded corners and introduced lots of complexity.
+I intentionally avoids this path.
+
 ## Installation
 
 ### From source
@@ -147,6 +164,13 @@ To disable desktop notifications:
 
 ```sh
 latchshot --no-notify
+```
+
+To always crop clicked windows from the frozen desktop frame instead of using
+native window capture:
+
+```sh
+latchshot --prefer-crop
 ```
 
 Print the discovered scene as JSON for diagnostics:

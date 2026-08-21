@@ -46,6 +46,7 @@ impl Socket {
 
 #[derive(Deserialize)]
 pub(super) struct Node {
+    pub(super) foreign_toplevel_identifier: Option<String>,
     pub(super) rect: Geometry,
     pub(super) visible: Option<bool>,
     pub(super) nodes: Vec<Self>,

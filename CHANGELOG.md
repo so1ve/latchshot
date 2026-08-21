@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- capture clicked windows through native Wayland or Niri paths to preserve transparent corners, with `--prefer-crop` to use the frozen desktop instead
+
 ## [0.2.5](https://github.com/so1ve/latchshot/compare/v0.2.4...v0.2.5) - 2026-08-21
 
 ### Added

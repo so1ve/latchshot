@@ -36,6 +36,7 @@ impl SceneReader for Mango {
         scene.windows = clients
             .into_iter()
             .map(|client| Window {
+                identifier: None,
                 geometry: Rect::new(
                     f64::from(client.x),
                     f64::from(client.y),

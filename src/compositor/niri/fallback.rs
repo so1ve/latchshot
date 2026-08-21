@@ -26,14 +26,14 @@ pub(super) struct Snapshot {
 impl Snapshot {
     pub(super) fn read(socket: &mut Socket, windows: Vec<IpcWindow>) -> Result<Self> {
         let Response::Workspaces(workspaces) = socket
-            .send(Request::Workspaces)
+            .send(&Request::Workspaces)
             .context("failed to communicate with Niri")?
             .map_err(anyhow::Error::msg)?
         else {
             panic!("Niri returned an unexpected response to Workspaces");
         };
         let overview_open = match socket
-            .send(Request::OverviewState)
+            .send(&Request::OverviewState)
             .context("failed to communicate with Niri")?
         {
             Ok(Response::OverviewState(overview)) => overview.is_open,
@@ -316,7 +316,10 @@ fn window_geometry(
         return None;
     }
 
-    Some(Window { geometry })
+    Some(Window {
+        geometry,
+        identifier: Some(window.id.to_string()),
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -721,9 +724,11 @@ mod tests {
             vec![
                 Window {
                     geometry: Rect::new(100.0, 252.0, 318.0, 396.0),
+                    identifier: Some("1".into()),
                 },
                 Window {
                     geometry: Rect::new(434.0, 252.0, 446.0, 396.0),
+                    identifier: Some("2".into()),
                 },
             ]
         );
@@ -761,9 +766,11 @@ mod tests {
             vec![
                 Window {
                     geometry: Rect::new(102.0, 252.0, 446.0, 396.0),
+                    identifier: Some("1".into()),
                 },
                 Window {
                     geometry: Rect::new(552.0, 252.0, 448.0, 396.0),
+                    identifier: Some("2".into()),
                 },
             ]
         );
@@ -795,6 +802,9 @@ mod tests {
             reconstruct(&snapshot, &scene, &desktop),
             vec![Window {
                 geometry: Rect::new(107.0, 252.0, 986.0, 396.0),
+                // Window 1 is the ambiguous edge fragment; the fully visible
+                // second column must retain window 2's capture identifier.
+                identifier: Some("2".into()),
             }]
         );
     }
@@ -829,6 +839,7 @@ mod tests {
             window_geometry(&output, &window, 6.0, 44.285714285714285),
             Some(Window {
                 geometry: Rect::new(108.0, 246.28571428571428, 2853.0 / 1.75, 1706.0 / 1.75,),
+                identifier: Some("1".into()),
             })
         );
     }
@@ -856,6 +867,7 @@ mod tests {
             reconstruct(&snapshot, &scene, &desktop)[0],
             Window {
                 geometry: Rect::new(402.0, 322.0, 196.0, 96.0),
+                identifier: Some("2".into()),
             }
         );
     }

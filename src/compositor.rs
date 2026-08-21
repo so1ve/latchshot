@@ -9,7 +9,7 @@ use anyhow::Result;
 use clap::ValueEnum;
 use log::debug;
 
-use crate::{DesktopFrame, Scene};
+use crate::{DesktopFrame, Scene, WindowCapture};
 
 mod generic;
 mod hyprland;
@@ -89,6 +89,15 @@ impl Compositor {
                 debug!("using generic Wayland scene discovery");
                 Ok(Box::new(generic::Generic::connect()?))
             }
+        }
+    }
+
+    /// Creates the compositor-specific window capture path, when one exists.
+    #[must_use]
+    pub fn window_capturer(self) -> Option<Box<dyn WindowCapture>> {
+        match self {
+            Self::Niri => Some(Box::new(niri::NiriWindowCapture)),
+            Self::Sway | Self::Hyprland | Self::Mango | Self::Generic => None,
         }
     }
 }
