@@ -110,19 +110,12 @@ fn main() -> Result<()> {
     let targets = args.targets();
     write(&image, &targets)?;
 
-    let path = targets.iter().find_map(|target| match target {
-        Target::File(path) => Some(path),
-        Target::Stdout | Target::Clipboard => None,
-    });
-    let copied = targets.contains(&Target::Clipboard);
-    match (path, copied) {
-        (Some(path), true) => notify(&format!(
-            "Screenshot saved to {} and copied to clipboard",
-            path.display()
-        )),
-        (Some(path), false) => notify(&format!("Screenshot saved to {}", path.display())),
-        (None, true) => notify("Screenshot copied to clipboard"),
-        (None, false) => {}
+    for target in &targets {
+        match target {
+            Target::File(path) => notify(&format!("Screenshot saved to {}", path.display())),
+            Target::Clipboard => notify("Screenshot copied to clipboard"),
+            Target::Stdout => {}
+        }
     }
 
     Ok(())
