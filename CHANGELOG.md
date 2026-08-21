@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4](https://github.com/so1ve/latchshot/compare/v0.2.3...v0.2.4) - 2026-08-21
+
+### Added
+
+- allow combining multiple output destinations
+
+### Fixed
+
+- *(overlay)* prevent input events from leaking to underlying apps
+- *(capture)* avoid extra pixels from floating-point rounding
+
+### Other
+
+- rename `write` to `write_to_targets`
+- simply loop over targets instead of generating specific messages
+
 ### Added
 
 - allow file, standard output, and clipboard destinations to be combined
