@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5](https://github.com/so1ve/latchshot/compare/v0.2.4...v0.2.5) - 2026-08-21
+
+### Added
+
+- display absolute path in notification
+- allow disabling desktop notifications
+
+### Fixed
+
+- *(overlay)* reattach solid surface buffers on every redraw
+
+### Other
+
+- publish binaries when releasing
+
 ## [0.2.4](https://github.com/so1ve/latchshot/compare/v0.2.3...v0.2.4) - 2026-08-21
 
 ### Added
