@@ -118,7 +118,6 @@ struct SolidSurface {
     surface: wl_surface::WlSurface,
     viewport: WpViewport,
     buffers: [Buffer; 2],
-    pixel: Option<[u8; 4]>,
     visible: bool,
 }
 
@@ -142,7 +141,6 @@ impl SolidSurface {
             surface,
             viewport,
             buffers,
-            pixel: None,
             visible: false,
         }
     }
@@ -156,12 +154,6 @@ impl SolidSurface {
     ) {
         self.viewport.set_destination(size.0, size.1);
         self.subsurface.set_position(position.0, position.1);
-        if self.visible && self.pixel == Some(pixel) {
-            self.surface.commit();
-
-            return;
-        }
-
         let buffer = self
             .buffers
             .iter()
@@ -171,16 +163,13 @@ impl SolidSurface {
         buffer.attach_to(&self.surface).unwrap();
         damage(&self.surface, 1, 1);
         self.surface.commit();
-        self.pixel = Some(pixel);
         self.visible = true;
     }
 
-    fn ready(&self, pool: &mut SlotPool, pixel: [u8; 4]) -> bool {
-        (self.visible && self.pixel == Some(pixel))
-            || self
-                .buffers
-                .iter()
-                .any(|buffer| buffer.canvas(pool).is_some())
+    fn ready(&self, pool: &mut SlotPool) -> bool {
+        self.buffers
+            .iter()
+            .any(|buffer| buffer.canvas(pool).is_some())
     }
 
     fn hide(&mut self) {
@@ -418,14 +407,12 @@ impl OutputOverlay {
                 ),
             ];
 
-            let veil_ready = self.veil.ready(&mut self.pool, veil_pixel);
-            let borders_ready =
-                self.borders
-                    .iter()
-                    .zip(border_layout)
-                    .all(|(border, (_, _, visible))| {
-                        !visible || border.ready(&mut self.pool, border_pixel)
-                    });
+            let veil_ready = self.veil.ready(&mut self.pool);
+            let borders_ready = self
+                .borders
+                .iter()
+                .zip(border_layout)
+                .all(|(border, (_, _, visible))| !visible || border.ready(&mut self.pool));
             if !(veil_ready && borders_ready) {
                 return;
             }
