@@ -143,6 +143,12 @@ To disable animation:
 latchshot --no-animation
 ```
 
+To disable desktop notifications:
+
+```sh
+latchshot --no-notify
+```
+
 Print the discovered scene as JSON for diagnostics:
 
 ```sh

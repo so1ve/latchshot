@@ -33,6 +33,10 @@ struct Args {
     #[arg(long)]
     no_animation: bool,
 
+    /// Disable desktop notifications
+    #[arg(long)]
+    no_notify: bool,
+
     /// Compositor backend (auto-detected, or generic when unknown)
     #[arg(long)]
     compositor: Option<Compositor>,
@@ -110,11 +114,13 @@ fn main() -> Result<()> {
     let targets = args.targets();
     write_to_targets(&image, &targets)?;
 
-    for target in &targets {
-        match target {
-            Target::File(path) => notify(&format!("Screenshot saved to {}", path.display())),
-            Target::Clipboard => notify("Screenshot copied to clipboard"),
-            Target::Stdout => {}
+    if !args.no_notify {
+        for target in &targets {
+            match target {
+                Target::File(path) => notify(&format!("Screenshot saved to {}", path.display())),
+                Target::Clipboard => notify("Screenshot copied to clipboard"),
+                Target::Stdout => {}
+            }
         }
     }
 
