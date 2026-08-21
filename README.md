@@ -163,6 +163,23 @@ LATCHSHOT_NIRI_FORCE_FALLBACK=1 latchshot
 
 Run `latchshot --help` for all options. Set `RUST_LOG=latchshot=debug` for additional diagnostics.
 
+## Workflow Examples
+
+Annotate with [Satty](https://github.com/gabm/Satty), save the result as a
+timestamped file under `~/Pictures`, and play the desktop's screenshot sound.
+Press <kbd>Enter</kbd> in Satty when finished:
+
+```sh
+file="$HOME/Pictures/latchshot-$(date +'%Y-%m-%d_%H-%M-%S').png"; latchshot --stdout | satty --filename - --output-filename "$file" --actions-on-enter=save-to-file,exit; test -s "$file" && canberra-gtk-play --id=screen-capture
+```
+
+The equivalent workflow with [Swappy](https://github.com/jtheoof/swappy)
+writes the annotated image when Swappy exits:
+
+```sh
+file="$HOME/Pictures/latchshot-$(date +'%Y-%m-%d_%H-%M-%S').png"; latchshot --stdout | swappy --file - --output-file "$file"; test -s "$file" && canberra-gtk-play --id=screen-capture
+```
+
 ## Library Usage
 
 Latchshot can also be used as a Rust library. See the [API documentation on docs.rs](https://docs.rs/latchshot) for details.
