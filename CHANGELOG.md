@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6](https://github.com/so1ve/latchshot/compare/v0.2.5...v0.2.6) - 2026-08-21
+
+### Added
+
+- *(capture)* support native wayland window capture protocol
+
+### Other
+
+- add workflow examples
+
 ### Added
 
 - capture clicked windows through native Wayland or Niri paths to preserve transparent corners, with `--prefer-crop` to use the frozen desktop instead
