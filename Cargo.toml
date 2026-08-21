@@ -1,6 +1,6 @@
 [package]
 name = "latchshot"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2024"
 description = "A lightweight yet intelligent window-aware screenshot tool"
 repository = "https://github.com/so1ve/latchshot"
