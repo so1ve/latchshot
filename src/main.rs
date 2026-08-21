@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::{File, OpenOptions, TryLockError};
-use std::path::PathBuf;
+use std::path::{PathBuf, absolute};
 
 use anyhow::{Context, Result, bail};
 use clap::Parser;
@@ -43,10 +43,12 @@ struct Args {
 }
 
 impl Args {
-    fn targets(self) -> Vec<Target> {
+    fn targets(self) -> Result<Vec<Target>> {
         let mut targets = Vec::with_capacity(3);
 
         if let Some(path) = self.output {
+            let path = absolute(&path)
+                .with_context(|| format!("failed to resolve output path {}", path.display()))?;
             targets.push(Target::File(path));
         }
         if self.stdout {
@@ -59,7 +61,7 @@ impl Args {
             targets.push(Target::Clipboard);
         }
 
-        targets
+        Ok(targets)
     }
 }
 
@@ -111,10 +113,11 @@ fn main() -> Result<()> {
     };
 
     let image = frame.crop(geometry);
-    let targets = args.targets();
+    let notifications_enabled = !args.no_notify;
+    let targets = args.targets()?;
     write_to_targets(&image, &targets)?;
 
-    if !args.no_notify {
+    if notifications_enabled {
         for target in &targets {
             match target {
                 Target::File(path) => notify(&format!("Screenshot saved to {}", path.display())),
