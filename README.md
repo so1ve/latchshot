@@ -130,6 +130,13 @@ Write PNG data to standard output:
 latchshot --stdout > screenshot.png
 ```
 
+Destinations can be combined. For example, this saves the screenshot to a
+file, streams it to standard output, and copies it to the clipboard:
+
+```sh
+latchshot --output ~/Pictures/screenshot.png --stdout --clipboard > screenshot-copy.png
+```
+
 To disable animation:
 
 ```sh

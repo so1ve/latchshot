@@ -1,8 +1,9 @@
 //! PNG encoding and output destinations for captured images.
 //!
 //! [`Target`] can save an image, stream it to standard output, or hand it to
-//! `wl-copy`. Applications may also use the returned `image::RgbaImage`
-//! directly instead.
+//! `wl-copy`. [`write`] sends the same encoded PNG to any combination of
+//! targets. Applications may also use the returned `image::RgbaImage` directly
+//! instead.
 
 use std::fs;
 use std::io::{self, Write};
@@ -24,18 +25,7 @@ pub enum Target {
 }
 
 impl Target {
-    /// Encodes the image as PNG and writes it to this target.
-    pub fn write(&self, image: &RgbaImage) -> Result<()> {
-        let mut png = Vec::new();
-        PngEncoder::new_with_quality(&mut png, CompressionType::Fast, FilterType::default())
-            .write_image(
-                image.as_raw(),
-                image.width(),
-                image.height(),
-                ExtendedColorType::Rgba8,
-            )
-            .unwrap();
-
+    fn write_png(&self, png: &[u8]) -> Result<()> {
         match self {
             Self::File(path) => fs::write(path, png)
                 .with_context(|| format!("failed to write screenshot to {}", path.display())),
@@ -43,7 +33,7 @@ impl Target {
                 let stdout = io::stdout();
                 let mut stdout = stdout.lock();
 
-                stdout.write_all(&png)?;
+                stdout.write_all(png)?;
                 stdout.flush()?;
 
                 Ok(())
@@ -59,7 +49,7 @@ impl Target {
                     .stdin
                     .take()
                     .unwrap()
-                    .write_all(&png)
+                    .write_all(png)
                     .context("failed to send screenshot to wl-copy")?;
 
                 let status = child.wait()?;
@@ -71,6 +61,29 @@ impl Target {
             }
         }
     }
+}
+
+/// Encodes an image once and writes the PNG to every target in order.
+pub fn write(image: &RgbaImage, targets: &[Target]) -> Result<()> {
+    if targets.is_empty() {
+        return Ok(());
+    }
+
+    let mut png = Vec::new();
+    PngEncoder::new_with_quality(&mut png, CompressionType::Fast, FilterType::default())
+        .write_image(
+            image.as_raw(),
+            image.width(),
+            image.height(),
+            ExtendedColorType::Rgba8,
+        )
+        .unwrap();
+
+    for target in targets {
+        target.write_png(&png)?;
+    }
+
+    Ok(())
 }
 
 /// Sends a desktop notification without propagating failures.
@@ -105,7 +118,7 @@ mod tests {
     fn writes_to_the_exact_requested_path() {
         let path =
             std::env::temp_dir().join(format!("latchshot-output-test-{}.png", process::id()));
-        Target::File(path.clone()).write(&sample_image()).unwrap();
+        write(&sample_image(), &[Target::File(path.clone())]).unwrap();
 
         let decoded = image::open(&path).unwrap().into_rgba8();
         fs::remove_file(path).unwrap();

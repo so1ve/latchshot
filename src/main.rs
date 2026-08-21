@@ -3,27 +3,26 @@ use std::fs::{File, OpenOptions, TryLockError};
 use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
-use clap::{ArgGroup, Parser};
-use latchshot::output::{Target, notify};
+use clap::Parser;
+use latchshot::output::{Target, notify, write};
 use latchshot::overlay::select;
 use latchshot::{Compositor, FrameCapture, Selection, SelectionResult, WaylandCapture};
 use log::info;
 
 #[derive(Parser)]
 #[command(version, about)]
-#[command(group(ArgGroup::new("destination").multiple(false)))]
 #[allow(clippy::struct_excessive_bools)]
 struct Args {
     /// Write the screenshot to PATH
-    #[arg(short, long, value_name = "PATH", group = "destination")]
+    #[arg(short, long, value_name = "PATH")]
     output: Option<PathBuf>,
 
     /// Write PNG data to stdout
-    #[arg(long, group = "destination")]
+    #[arg(long)]
     stdout: bool,
 
     /// Copy the PNG to the Wayland clipboard (the default)
-    #[arg(short, long, group = "destination")]
+    #[arg(short, long)]
     clipboard: bool,
 
     /// Print the scene as JSON
@@ -37,6 +36,27 @@ struct Args {
     /// Compositor backend (auto-detected, or generic when unknown)
     #[arg(long)]
     compositor: Option<Compositor>,
+}
+
+impl Args {
+    fn targets(self) -> Vec<Target> {
+        let mut targets = Vec::with_capacity(3);
+
+        if let Some(path) = self.output {
+            targets.push(Target::File(path));
+        }
+        if self.stdout {
+            targets.push(Target::Stdout);
+        }
+        if self.clipboard {
+            targets.push(Target::Clipboard);
+        }
+        if targets.is_empty() {
+            targets.push(Target::Clipboard);
+        }
+
+        targets
+    }
 }
 
 fn main() -> Result<()> {
@@ -87,19 +107,22 @@ fn main() -> Result<()> {
     };
 
     let image = frame.crop(geometry);
-    let target = if args.stdout {
-        Target::Stdout
-    } else if let Some(path) = args.output {
-        Target::File(path)
-    } else {
-        Target::Clipboard
-    };
-    target.write(&image)?;
+    let targets = args.targets();
+    write(&image, &targets)?;
 
-    match target {
-        Target::File(path) => notify(&format!("Screenshot saved to {}", path.display())),
-        Target::Clipboard => notify("Screenshot copied to clipboard"),
-        Target::Stdout => {}
+    let path = targets.iter().find_map(|target| match target {
+        Target::File(path) => Some(path),
+        Target::Stdout | Target::Clipboard => None,
+    });
+    let copied = targets.contains(&Target::Clipboard);
+    match (path, copied) {
+        (Some(path), true) => notify(&format!(
+            "Screenshot saved to {} and copied to clipboard",
+            path.display()
+        )),
+        (Some(path), false) => notify(&format!("Screenshot saved to {}", path.display())),
+        (None, true) => notify("Screenshot copied to clipboard"),
+        (None, false) => {}
     }
 
     Ok(())

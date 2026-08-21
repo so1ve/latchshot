@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- allow file, standard output, and clipboard destinations to be combined
+
 ## [0.2.3](https://github.com/so1ve/latchshot/compare/v0.2.2...v0.2.3) - 2026-08-19
 
 ### Added
