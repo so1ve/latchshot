@@ -141,12 +141,18 @@ fn main() -> Result<()> {
     write_to_targets(&image, &targets)?;
 
     if notifications_enabled {
-        for target in &targets {
-            match target {
-                Target::File(path) => notify(&format!("Screenshot saved to {}", path.display())),
-                Target::Clipboard => notify("Screenshot copied to clipboard"),
-                Target::Stdout => {}
-            }
+        let body = targets
+            .iter()
+            .filter_map(|target| match target {
+                Target::File(path) => Some(format!("Screenshot saved to {}", path.display())),
+                Target::Clipboard => Some("Screenshot copied to clipboard".to_owned()),
+                Target::Stdout => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        if !body.is_empty() {
+            notify(&body);
         }
     }
 
