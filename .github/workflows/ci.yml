@@ -15,7 +15,7 @@ jobs:
     name: Rust
     uses: so1ve/workflows/.github/workflows/rust-ci.yml@v1
     with:
-      toolchain: stable
+      toolchain: nightly
       runs-on-matrix: '"ubuntu-latest"'
       setup: .github/actions/setup-rust-ci
 
@@ -63,7 +63,7 @@ jobs:
     steps:
       - uses: so1ve/workflows/setup-rust@v1
         with:
-          toolchain: stable
+          toolchain: nightly
       - uses: ./.github/actions/setup-rust-ci
       - run: cargo build --locked --release
       - run: mv target/release/latchshot "latchshot-${{ matrix.target }}"
