@@ -174,8 +174,8 @@ impl DesktopFrame {
                     .map(|intersection| (frame, intersection))
             })
             .collect::<Vec<_>>();
-        // Fast path: If there's only one frame and it exactly matches the region, we
-        // can return it directly.
+        // Fast path: If there's only one frame and it exactly matches the
+        // region, we can return it directly.
         if let [(frame, intersection)] = frames.as_slice()
             // Public API callers may pass regions extending beyond an output;
             // the slow path keeps their full size with transparent padding.

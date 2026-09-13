@@ -65,8 +65,8 @@ impl SceneReader for Niri {
                         "Niri rejected WindowGeometries ({error}); reconstructing window geometry from standard IPC"
                     );
 
-                    // FIXME: Remove the fallback module and state once upstream Niri exposes
-                    // exact on-screen window geometry.
+                    // FIXME: Remove the fallback module and state once upstream
+                    // Niri exposes exact on-screen window geometry.
                     None
                 }
             }
