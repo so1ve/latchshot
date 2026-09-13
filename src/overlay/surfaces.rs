@@ -20,6 +20,7 @@ use crate::{OutputId, Point, Rect};
 const BORDER_WIDTH: i32 = 2;
 const BORDER_PIXEL: [u8; 4] = [255, 239, 215, 255];
 const DIM_FACTOR: u8 = 140;
+const DIM_PIXEL: [u8; 4] = [0, 0, 0, 255 - DIM_FACTOR];
 
 pub(super) struct SurfaceContext<'a> {
     pub(super) compositor: &'a CompositorState,
@@ -34,33 +35,23 @@ pub(super) struct OutputOverlay {
     wl_output: wl_output::WlOutput,
     layer: LayerSurface,
     viewport: WpViewport,
-    highlight_subsurface: wl_subsurface::WlSubsurface,
-    highlight_surface: wl_surface::WlSurface,
-    highlight_viewport: WpViewport,
+    dim: [SolidSurface; 4],
     veil: SolidSurface,
     borders: [SolidSurface; 4],
     pool: SlotPool,
     background: Buffer,
-    highlight_buffer: Buffer,
     width: u32,
     height: u32,
     configured_size: Option<(u32, u32)>,
     pending_frame: Option<PendingFrame>,
     reveal_acknowledged: Option<u64>,
-    content_state: ContentState,
+    content_initialized: bool,
     dirty: bool,
 }
 
 struct PendingFrame {
     continue_animation: bool,
     reveal: Option<PendingReveal>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ContentState {
-    Empty,
-    HighlightHidden,
-    HighlightVisible,
 }
 
 fn child_surface(
@@ -199,7 +190,7 @@ impl OutputOverlay {
         let height = frame.image.height();
         let stride = width as i32 * 4;
         let buffer_size = frame.image.as_raw().len();
-        let mut pool = SlotPool::new(buffer_size * 2 + 4096, shm).unwrap();
+        let mut pool = SlotPool::new(buffer_size + 4096, shm).unwrap();
         let (background, canvas) = pool
             .create_buffer(
                 width as i32,
@@ -208,18 +199,7 @@ impl OutputOverlay {
                 wl_shm::Format::Argb8888,
             )
             .unwrap();
-        copy_frame(frame, canvas, |channel| {
-            multiply_channel(channel, DIM_FACTOR)
-        });
-        let (highlight, canvas) = pool
-            .create_buffer(
-                width as i32,
-                height as i32,
-                stride,
-                wl_shm::Format::Argb8888,
-            )
-            .unwrap();
-        copy_frame(frame, canvas, std::convert::identity);
+        copy_frame(frame, canvas);
 
         let surface = context.compositor.create_surface(context.qh);
         let layer = layer_shell.create_layer_surface(
@@ -239,12 +219,8 @@ impl OutputOverlay {
             .get_viewport(layer.wl_surface(), context.qh, ());
         viewport.set_source(0.0, 0.0, f64::from(width), f64::from(height));
 
-        let (highlight_subsurface, highlight_surface) = child_surface(layer.wl_surface(), context);
-        let highlight_viewport =
-            context
-                .viewporter
-                .get_viewport(&highlight_surface, context.qh, ());
-
+        let dim =
+            std::array::from_fn(|_| SolidSurface::new(layer.wl_surface(), &mut pool, context));
         let veil = SolidSurface::new(layer.wl_surface(), &mut pool, context);
         let borders =
             std::array::from_fn(|_| SolidSurface::new(layer.wl_surface(), &mut pool, context));
@@ -256,20 +232,17 @@ impl OutputOverlay {
             wl_output,
             layer,
             viewport,
-            highlight_subsurface,
-            highlight_surface,
-            highlight_viewport,
+            dim,
             veil,
             borders,
             pool,
             background,
-            highlight_buffer: highlight,
             width,
             height,
             configured_size: None,
             pending_frame: None,
             reveal_acknowledged: None,
-            content_state: ContentState::Empty,
+            content_initialized: false,
             dirty: true,
         }
     }
@@ -354,21 +327,34 @@ impl OutputOverlay {
 
         self.initialize_content();
 
-        let visible = if let Some(global_selection) = selection
-            && let Some((left, top, right, bottom)) =
-                projected_selection(self.logical_geometry, global_selection, configured_size)
+        let projected = selection.and_then(|selection| {
+            projected_selection(self.logical_geometry, selection, configured_size)
+        });
+        let (width, height) = (configured_size.0 as i32, configured_size.1 as i32);
+        let (left, top, right, bottom) = projected.unwrap_or((0, height, width, height));
+        // Keep the original frame fixed: cropping it into a moving viewport can
+        // resample half-pixel edges on fractionally scaled outputs. Only these
+        // disjoint, solid-color masks move around the selection.
+        let dim_layout = [
+            ((0, 0), (width, top)),
+            ((0, top), (left, bottom - top)),
+            ((right, top), (width - right, bottom - top)),
+            ((0, bottom), (width, height - bottom)),
+        ];
+        if !self
+            .dim
+            .iter()
+            .zip(dim_layout)
+            .all(|(dim, (_, size))| size.0 == 0 || size.1 == 0 || dim.ready(&mut self.pool))
         {
-            let (configured_width, configured_height) = configured_size;
+            return;
+        }
+
+        let visible = if let Some(global_selection) = selection
+            && let Some((left, top, right, bottom)) = projected
+        {
             let target_width = right - left;
             let target_height = bottom - top;
-            let source_scale_x = f64::from(self.width) / f64::from(configured_width);
-            let source_scale_y = f64::from(self.height) / f64::from(configured_height);
-            let source = Rect::new(
-                f64::from(left) * source_scale_x,
-                f64::from(top) * source_scale_y,
-                f64::from(target_width) * source_scale_x,
-                f64::from(target_height) * source_scale_y,
-            );
 
             let has_top = global_selection.top() >= self.logical_geometry.top();
             let has_bottom = global_selection.bottom() <= self.logical_geometry.bottom();
@@ -417,22 +403,6 @@ impl OutputOverlay {
                 return;
             }
 
-            self.highlight_viewport.set_source(
-                source.left(),
-                source.top(),
-                source.width(),
-                source.height(),
-            );
-            self.highlight_viewport
-                .set_destination(target_width, target_height);
-            self.highlight_subsurface.set_position(left, top);
-            if self.content_state == ContentState::HighlightHidden {
-                self.highlight_subsurface
-                    .place_above(self.layer.wl_surface());
-                self.content_state = ContentState::HighlightVisible;
-            }
-            self.highlight_surface.commit();
-
             self.veil.show(
                 &mut self.pool,
                 (left, top),
@@ -454,6 +424,14 @@ impl OutputOverlay {
             false
         };
 
+        for (dim, (position, size)) in self.dim.iter_mut().zip(dim_layout) {
+            if size.0 > 0 && size.1 > 0 {
+                dim.show(&mut self.pool, position, size, DIM_PIXEL);
+            } else {
+                dim.hide();
+            }
+        }
+
         let surface = self.layer.wl_surface();
         surface.frame(qh, FrameCallbackData(surface.clone()));
         let pending_reveal =
@@ -467,7 +445,7 @@ impl OutputOverlay {
     }
 
     fn initialize_content(&mut self) {
-        if self.content_state != ContentState::Empty {
+        if self.content_initialized {
             return;
         }
 
@@ -477,29 +455,10 @@ impl OutputOverlay {
             self.width as i32,
             self.height as i32,
         );
-        self.highlight_viewport
-            .set_source(0.0, 0.0, f64::from(self.width), f64::from(self.height));
-        self.highlight_viewport.set_destination(1, 1);
-        self.highlight_subsurface
-            .place_below(self.layer.wl_surface());
-        self.highlight_buffer
-            .attach_to(&self.highlight_surface)
-            .unwrap();
-        damage(
-            &self.highlight_surface,
-            self.width as i32,
-            self.height as i32,
-        );
-        self.highlight_surface.commit();
-        self.content_state = ContentState::HighlightHidden;
+        self.content_initialized = true;
     }
 
     fn hide_selection(&mut self) {
-        if self.content_state == ContentState::HighlightVisible {
-            self.highlight_subsurface
-                .place_below(self.layer.wl_surface());
-            self.content_state = ContentState::HighlightHidden;
-        }
         self.veil.hide();
         self.borders.iter_mut().for_each(SolidSurface::hide);
     }
@@ -507,7 +466,6 @@ impl OutputOverlay {
 
 impl Drop for OutputOverlay {
     fn drop(&mut self) {
-        self.highlight_viewport.destroy();
         self.viewport.destroy();
     }
 }
