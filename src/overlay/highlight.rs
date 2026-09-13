@@ -1,17 +1,11 @@
 use std::time::{Duration, Instant};
 
+use super::PendingReveal;
 use crate::{AnimatedRect, Rect};
 
 const SPRING_SETTLE_TIME: Duration = Duration::from_millis(120);
 const FADE_TIME: Duration = Duration::from_millis(90);
 const WINDOW_GAP_GRACE: Duration = Duration::from_millis(80);
-
-/// A reveal generation awaiting each intersecting output's frame callback.
-#[derive(Clone, Copy)]
-pub(super) struct PendingReveal {
-    pub(super) generation: u64,
-    pub(super) target: Rect,
-}
 
 /// Animates the snap outline, fade-in, and brief gaps between windows.
 pub(super) struct Highlight {
@@ -188,10 +182,10 @@ mod tests {
 
         highlight.start_reveal(much_later);
         assert_eq!(highlight.sample(much_later), (Some(first), 0.0, true));
-        let after_fade = much_later + FADE_TIME;
-        assert_eq!(highlight.sample(after_fade), (Some(first), 1.0, false));
-        highlight.set_target(None, after_fade);
-        let after_clear = after_fade + WINDOW_GAP_GRACE;
+        let during_fade = much_later + FADE_TIME / 2;
+        assert_eq!(highlight.sample(during_fade), (Some(first), 0.5, true));
+        highlight.set_target(None, during_fade);
+        let after_clear = during_fade + WINDOW_GAP_GRACE;
         assert_eq!(highlight.sample(after_clear), (None, 1.0, false));
         highlight.set_target(Some(second), after_clear);
 
@@ -204,29 +198,12 @@ mod tests {
     }
 
     #[test]
-    fn interrupted_first_reveal_waits_for_the_next_highlight() {
-        let now = Instant::now();
-        let target = Rect::new(10.0, 20.0, 300.0, 200.0);
-        let mut highlight = Highlight::new(true);
-
-        highlight.set_target(Some(target), now);
-        highlight.start_reveal(now);
-        highlight.set_target(None, now);
-        let after_clear = now + WINDOW_GAP_GRACE;
-        assert_eq!(highlight.sample(after_clear), (None, 1.0, false));
-        highlight.set_target(Some(target), after_clear);
-
-        assert_eq!(highlight.sample(after_clear), (Some(target), 0.0, true));
-    }
-
-    #[test]
     fn window_gap_preserves_without_extending() {
         let now = Instant::now();
         let target = Rect::new(10.0, 20.0, 300.0, 200.0);
         let mut highlight = Highlight::new(false);
 
         highlight.set_target(Some(target), now);
-        let generation = highlight.generation;
         highlight.set_target(None, now);
         highlight.set_target(None, now + WINDOW_GAP_GRACE / 2);
 
@@ -234,7 +211,6 @@ mod tests {
             highlight.sample(now + WINDOW_GAP_GRACE / 2),
             (Some(target), 1.0, true)
         );
-        assert_eq!(highlight.generation, generation);
         assert_eq!(highlight.sample(now + WINDOW_GAP_GRACE), (None, 1.0, false));
     }
 

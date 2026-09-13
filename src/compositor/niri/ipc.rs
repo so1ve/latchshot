@@ -142,8 +142,8 @@ pub(super) struct WindowLayout {
 
 #[derive(Clone, Copy, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Timestamp {
-    pub(super) secs: u64,
-    pub(super) nanos: u32,
+    secs: u64,
+    nanos: u32,
 }
 
 #[derive(Deserialize)]

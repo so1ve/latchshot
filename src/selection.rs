@@ -29,7 +29,6 @@ pub enum SelectionResult {
     Cancelled,
 }
 
-#[derive(Debug, Clone, PartialEq)]
 enum State {
     Waiting,
     Hover {
@@ -113,7 +112,7 @@ impl Selector {
         self.state = match self.state {
             State::Waiting | State::Hover { .. } => State::Hover {
                 pointer,
-                target: self.scene.window_index_at(pointer),
+                target: self.window_index_at(pointer),
             },
             State::Pressed { origin, .. }
                 if origin.distance_squared(pointer) >= self.drag_threshold_squared =>
@@ -145,7 +144,7 @@ impl Selector {
                 if region.width() == 0.0 || region.height() == 0.0 {
                     self.state = State::Hover {
                         pointer,
-                        target: self.scene.window_index_at(pointer),
+                        target: self.window_index_at(pointer),
                     };
 
                     return None;
@@ -169,16 +168,40 @@ impl Selector {
 
         Some(SelectionResult::Selected(result))
     }
+
+    fn window_index_at(&self, point: Point) -> Option<usize> {
+        self.scene
+            .windows
+            .iter()
+            .position(|window| window.geometry.contains(point))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::{output, window};
+    use crate::{Output, OutputId, OutputTransform, Size};
+
+    fn output(id: &str) -> Output {
+        Output {
+            id: OutputId::new(id),
+            logical_geometry: Rect::new(0.0, 0.0, 1920.0, 1080.0),
+            pixel_size: Size::new(1920.0, 1080.0),
+            scale: 1.0,
+            transform: OutputTransform::Normal,
+        }
+    }
+
+    const fn window(geometry: Rect) -> Window {
+        Window {
+            geometry,
+            identifier: None,
+        }
+    }
 
     fn scene() -> Scene {
         Scene {
-            outputs: vec![output("DP-1", 1.0)],
+            outputs: vec![output("DP-1")],
             windows: vec![window(Rect::new(100.0, 100.0, 800.0, 600.0))],
         }
     }
@@ -188,8 +211,12 @@ mod tests {
     }
 
     #[test]
-    fn click_selects_the_snapped_window() {
-        let mut selector = selector();
+    fn click_selects_the_frontmost_window() {
+        let mut scene = scene();
+        scene
+            .windows
+            .push(window(Rect::new(50.0, 50.0, 850.0, 650.0)));
+        let mut selector = Selector::new(scene, 4.0);
 
         selector.pointer_moved(Point::new(200.0, 200.0));
         selector.press();
@@ -219,10 +246,10 @@ mod tests {
     }
 
     #[test]
-    fn fullscreen_selects_the_output_under_the_pointer() {
-        let mut left = output("left", 1.0);
+    fn fullscreen_selects_the_output_at_a_shared_edge() {
+        let mut left = output("left");
         left.logical_geometry = Rect::new(-1280.0, 100.0, 1280.0, 720.0);
-        let mut right = output("right", 1.0);
+        let mut right = output("right");
         right.logical_geometry = Rect::new(0.0, 0.0, 1920.0, 1080.0);
         let mut selector = Selector::new(
             Scene {
@@ -231,7 +258,7 @@ mod tests {
             },
             4.0,
         );
-        selector.pointer_moved(Point::new(100.0, 100.0));
+        selector.pointer_moved(Point::new(0.0, 100.0));
 
         assert_eq!(
             selector.select_fullscreen(),
@@ -254,18 +281,6 @@ mod tests {
     }
 
     #[test]
-    fn a_line_is_not_a_region() {
-        let mut selector = selector();
-
-        selector.pointer_moved(Point::new(1_000.0, 1_000.0));
-        selector.press();
-        selector.pointer_moved(Point::new(1_100.0, 1_000.0));
-
-        assert_eq!(selector.release(), None);
-        assert_eq!(selector.region(), None);
-    }
-
-    #[test]
     fn releasing_a_line_restores_the_window_target() {
         let mut selector = selector();
 
@@ -275,6 +290,7 @@ mod tests {
         assert_eq!(selector.target_geometry(), None);
 
         assert_eq!(selector.release(), None);
+        assert_eq!(selector.region(), None);
         assert_eq!(
             selector.target_geometry(),
             Some(Rect::new(100.0, 100.0, 800.0, 600.0))

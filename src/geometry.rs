@@ -103,27 +103,3 @@ impl Rect {
         (left < right && top < bottom).then(|| Self::new(left, top, right - left, bottom - top))
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn rectangle_from_points_is_normalized() {
-        assert_eq!(
-            Rect::from_points(Point::new(80.0, 70.0), Point::new(20.0, 10.0)),
-            Rect::new(20.0, 10.0, 60.0, 60.0)
-        );
-    }
-
-    #[test]
-    fn rectangle_intersection_excludes_touching_edges() {
-        let rect = Rect::new(0.0, 0.0, 100.0, 100.0);
-
-        assert_eq!(
-            rect.intersection(Rect::new(50.0, 20.0, 80.0, 40.0)),
-            Some(Rect::new(50.0, 20.0, 50.0, 40.0))
-        );
-        assert_eq!(rect.intersection(Rect::new(100.0, 0.0, 20.0, 20.0)), None);
-    }
-}

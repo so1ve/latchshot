@@ -59,6 +59,3 @@ pub use compositor::{Compositor, SceneReader};
 pub use geometry::{Point, Rect, Size};
 pub use scene::{Output, OutputId, OutputTransform, Scene, Window};
 pub use selection::{Selection, SelectionResult, Selector};
-
-#[cfg(test)]
-pub(crate) mod test_support;

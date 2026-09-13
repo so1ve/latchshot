@@ -6,21 +6,19 @@ use smithay_client_toolkit::shell::wlr_layer::{
 use smithay_client_toolkit::shm::Shm;
 use smithay_client_toolkit::shm::slot::{Buffer, SlotPool};
 use smithay_client_toolkit::subcompositor::SubcompositorState;
+use wayland_client::QueueHandle;
 use wayland_client::protocol::{wl_output, wl_shm, wl_subsurface, wl_surface};
-use wayland_client::{Proxy, QueueHandle};
 use wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use wayland_protocols::wp::viewporter::client::wp_viewporter::WpViewporter;
 
-use super::highlight::PendingReveal;
-use super::render::{copy_frame, multiply_channel};
-use super::session::{FramePlan, State};
+use super::{FramePlan, PendingReveal, State};
 use crate::capture::OutputFrame;
 use crate::{OutputId, Point, Rect};
 
 const BORDER_WIDTH: i32 = 2;
 const BORDER_PIXEL: [u8; 4] = [255, 239, 215, 255];
-const DIM_FACTOR: u8 = 140;
-const DIM_PIXEL: [u8; 4] = [0, 0, 0, 255 - DIM_FACTOR];
+const DIM_ALPHA: u8 = 115;
+const DIM_PIXEL: [u8; 4] = [0, 0, 0, DIM_ALPHA];
 
 pub(super) struct SurfaceContext<'a> {
     pub(super) compositor: &'a CompositorState,
@@ -40,12 +38,9 @@ pub(super) struct OutputOverlay {
     borders: [SolidSurface; 4],
     pool: SlotPool,
     background: Buffer,
-    width: u32,
-    height: u32,
     configured_size: Option<(u32, u32)>,
     pending_frame: Option<PendingFrame>,
     reveal_acknowledged: Option<u64>,
-    content_initialized: bool,
     dirty: bool,
 }
 
@@ -54,26 +49,8 @@ struct PendingFrame {
     reveal: Option<PendingReveal>,
 }
 
-fn child_surface(
-    parent: &wl_surface::WlSurface,
-    context: &SurfaceContext<'_>,
-) -> (wl_subsurface::WlSubsurface, wl_surface::WlSurface) {
-    let (subsurface, surface) = context
-        .subcompositor
-        .create_subsurface(parent.clone(), context.qh);
-    let empty_region = Region::new(context.compositor).unwrap();
-    surface.set_input_region(Some(empty_region.wl_region()));
-    surface.commit();
-
-    (subsurface, surface)
-}
-
-fn damage(surface: &wl_surface::WlSurface, width: i32, height: i32) {
-    if surface.version() >= 4 {
-        surface.damage_buffer(0, 0, width, height);
-    } else {
-        surface.damage(0, 0, i32::MAX, i32::MAX);
-    }
+const fn multiply_channel(channel: u8, factor: u8) -> u8 {
+    ((channel as u16 * factor as u16 + 127) / 255) as u8
 }
 
 fn projected_selection(
@@ -118,7 +95,13 @@ impl SolidSurface {
         pool: &mut SlotPool,
         context: &SurfaceContext<'_>,
     ) -> Self {
-        let (subsurface, surface) = child_surface(parent, context);
+        let (subsurface, surface) = context
+            .subcompositor
+            .create_subsurface(parent.clone(), context.qh);
+        let empty_region = Region::new(context.compositor).unwrap();
+        surface.set_input_region(Some(empty_region.wl_region()));
+        surface.commit();
+
         let viewport = context.viewporter.get_viewport(&surface, context.qh, ());
         viewport.set_source(0.0, 0.0, 1.0, 1.0);
         let buffers = std::array::from_fn(|_| {
@@ -152,7 +135,7 @@ impl SolidSurface {
             .unwrap();
         buffer.canvas(pool).unwrap().copy_from_slice(&pixel);
         buffer.attach_to(&self.surface).unwrap();
-        damage(&self.surface, 1, 1);
+        self.surface.damage(0, 0, size.0, size.1);
         self.surface.commit();
         self.visible = true;
     }
@@ -199,7 +182,20 @@ impl OutputOverlay {
                 wl_shm::Format::Argb8888,
             )
             .unwrap();
-        copy_frame(frame, canvas);
+        for (target, source) in canvas
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(frame.image.pixels())
+        {
+            let [red, green, blue, alpha] = source.0;
+            target.copy_from_slice(&[
+                multiply_channel(blue, alpha),
+                multiply_channel(green, alpha),
+                multiply_channel(red, alpha),
+                alpha,
+            ]);
+        }
 
         let surface = context.compositor.create_surface(context.qh);
         let layer = layer_shell.create_layer_surface(
@@ -237,12 +233,9 @@ impl OutputOverlay {
             borders,
             pool,
             background,
-            width,
-            height,
             configured_size: None,
             pending_frame: None,
             reveal_acknowledged: None,
-            content_initialized: false,
             dirty: true,
         }
     }
@@ -278,6 +271,11 @@ impl OutputOverlay {
             size.1
         };
         self.viewport.set_destination(width as i32, height as i32);
+        let surface = self.layer.wl_surface();
+        if self.configured_size.is_none() {
+            self.background.attach_to(surface).unwrap();
+        }
+        surface.damage(0, 0, width as i32, height as i32);
         self.configured_size = Some((width, height));
         self.mark_dirty();
     }
@@ -325,13 +323,11 @@ impl OutputOverlay {
             return;
         }
 
-        self.initialize_content();
-
         let projected = selection.and_then(|selection| {
             projected_selection(self.logical_geometry, selection, configured_size)
         });
         let (width, height) = (configured_size.0 as i32, configured_size.1 as i32);
-        let (left, top, right, bottom) = projected.unwrap_or((0, height, width, height));
+        let (left, top, right, bottom) = projected.unwrap_or_default();
         // Keep the original frame fixed: cropping it into a moving viewport can
         // resample half-pixel edges on fractionally scaled outputs. Only these
         // disjoint, solid-color masks move around the selection.
@@ -368,7 +364,7 @@ impl OutputOverlay {
                 0,
                 0,
                 0,
-                (f32::from(255 - DIM_FACTOR) * (1.0 - reveal)).round() as u8,
+                (f32::from(DIM_ALPHA) * (1.0 - reveal)).round() as u8,
             ];
             let border_layout = [
                 (
@@ -419,7 +415,8 @@ impl OutputOverlay {
 
             true
         } else {
-            self.hide_selection();
+            self.veil.hide();
+            self.borders.iter_mut().for_each(|s| s.hide());
 
             false
         };
@@ -442,25 +439,6 @@ impl OutputOverlay {
         });
         self.layer.commit();
         self.dirty = false;
-    }
-
-    fn initialize_content(&mut self) {
-        if self.content_initialized {
-            return;
-        }
-
-        self.background.attach_to(self.layer.wl_surface()).unwrap();
-        damage(
-            self.layer.wl_surface(),
-            self.width as i32,
-            self.height as i32,
-        );
-        self.content_initialized = true;
-    }
-
-    fn hide_selection(&mut self) {
-        self.veil.hide();
-        self.borders.iter_mut().for_each(SolidSurface::hide);
     }
 }
 

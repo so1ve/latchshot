@@ -833,14 +833,26 @@ mod tests {
         let mut output = output(1645.7142857142858, 1028.5714285714287);
         output.scale = 1.75;
         output.pixel_size = Size::new(2880.0, 1800.0);
-        let window = ipc_window(1, 1, (1645.0, 1000.0), (1630.0, 975.0));
+        let scene = Scene {
+            outputs: vec![output.clone()],
+            windows: Vec::new(),
+        };
+        let desktop = frame(
+            RgbaImage::from_pixel(2880, 1800, Rgba([20, 20, 20, 255])),
+            output.logical_geometry,
+        );
+        let mut window = ipc_window(1, 1, (1645.0, 1000.0), (1630.0, 975.0));
+        window.is_floating = true;
+        window.layout.pos_in_scrolling_layout = None;
+        window.layout.tile_pos_in_workspace_view = Some((6.0, 44.285714285714285));
+        let snapshot = snapshot(vec![window], Some(1));
 
         assert_eq!(
-            window_geometry(&output, &window, 6.0, 44.285714285714285),
-            Some(Window {
+            reconstruct(&snapshot, &scene, &desktop),
+            vec![Window {
                 geometry: Rect::new(108.0, 246.28571428571428, 2853.0 / 1.75, 1706.0 / 1.75,),
                 identifier: Some("1".into()),
-            })
+            }]
         );
     }
 
@@ -857,18 +869,23 @@ mod tests {
         floating.is_floating = true;
         floating.layout.pos_in_scrolling_layout = None;
         floating.layout.tile_pos_in_workspace_view = Some((300.0, 120.0));
-        floating.focus_timestamp = Some(super::super::ipc::Timestamp { secs: 1, nanos: 0 });
         let snapshot = snapshot(
             vec![ipc_window(1, 1, (800.0, 500.0), (796.0, 496.0)), floating],
             Some(2),
         );
 
         assert_eq!(
-            reconstruct(&snapshot, &scene, &desktop)[0],
-            Window {
-                geometry: Rect::new(402.0, 322.0, 196.0, 96.0),
-                identifier: Some("2".into()),
-            }
+            reconstruct(&snapshot, &scene, &desktop),
+            vec![
+                Window {
+                    geometry: Rect::new(402.0, 322.0, 196.0, 96.0),
+                    identifier: Some("2".into()),
+                },
+                Window {
+                    geometry: Rect::new(102.0, 202.0, 796.0, 496.0),
+                    identifier: Some("1".into()),
+                },
+            ]
         );
     }
 }

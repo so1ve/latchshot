@@ -162,6 +162,7 @@ impl DesktopFrame {
     /// # Panics
     ///
     /// Panics if `region` does not intersect any captured output.
+    #[must_use]
     pub fn crop(&self, region: Rect) -> RgbaImage {
         let frames = self
             .outputs
@@ -245,7 +246,6 @@ impl DesktopFrame {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PixelRect {
     x: u32,
     y: u32,
@@ -304,23 +304,7 @@ mod tests {
     }
 
     #[test]
-    fn crops_a_single_output_at_native_scale() {
-        let desktop = DesktopFrame {
-            outputs: vec![solid_frame(
-                "eDP-1",
-                Rect::new(0.0, 0.0, 100.0, 80.0),
-                2.0,
-                Rgba([10, 20, 30, 255]),
-            )],
-        };
-
-        let image = desktop.crop(Rect::new(10.0, 20.0, 30.0, 40.0));
-        assert_eq!(image.dimensions(), (60, 80));
-        assert_eq!(*image.get_pixel(0, 0), Rgba([10, 20, 30, 255]));
-    }
-
-    #[test]
-    fn mixed_dpi_crop_uses_the_highest_scale() {
+    fn mixed_dpi_crop_uses_the_highest_intersecting_scale() {
         let desktop = DesktopFrame {
             outputs: vec![
                 solid_frame(
@@ -337,6 +321,9 @@ mod tests {
                 ),
             ],
         };
+
+        let image = desktop.crop(Rect::new(0.0, 0.0, 100.0, 100.0));
+        assert_eq!(image, desktop.outputs[0].image);
 
         let image = desktop.crop(Rect::new(50.0, 0.0, 100.0, 100.0));
         assert_eq!(image.dimensions(), (200, 200));
@@ -389,20 +376,48 @@ mod tests {
     }
 
     #[test]
-    fn fractional_origin_crop_stays_on_the_native_pixel_grid() {
-        let desktop = DesktopFrame {
-            outputs: vec![OutputFrame {
-                output: OutputId::new("fractional"),
-                logical_geometry: Rect::new(0.0, 0.0, 8.0, 8.0),
-                image: RgbaImage::from_fn(10, 10, |x, _| Rgba([x as u8, 0, 0, 255])),
-            }],
-        };
+    fn crops_on_the_native_pixel_grid() {
+        for (pixels, region, dimensions, first, last) in [
+            (
+                8,
+                Rect::new(1.0, 2.0, 3.0, 4.0),
+                (3, 4),
+                [1, 2, 0, 255],
+                [3, 5, 0, 255],
+            ),
+            (
+                16,
+                Rect::new(1.0, 2.0, 3.0, 4.0),
+                (6, 8),
+                [2, 4, 0, 255],
+                [7, 11, 0, 255],
+            ),
+            (
+                10,
+                Rect::new(0.4, 0.4, 4.0, 4.0),
+                (6, 6),
+                [0, 0, 0, 255],
+                [5, 5, 0, 255],
+            ),
+        ] {
+            let desktop = DesktopFrame {
+                outputs: vec![OutputFrame {
+                    output: OutputId::new("test"),
+                    logical_geometry: Rect::new(0.0, 0.0, 8.0, 8.0),
+                    image: RgbaImage::from_fn(pixels, pixels, |x, y| {
+                        Rgba([x as u8, y as u8, 0, 255])
+                    }),
+                }],
+            };
+            let image = desktop.crop(region);
 
-        let image = desktop.crop(Rect::new(0.4, 0.4, 4.0, 4.0));
-
-        assert_eq!(image.dimensions(), (6, 6));
-        assert_eq!(*image.get_pixel(0, 0), Rgba([0, 0, 0, 255]));
-        assert_eq!(*image.get_pixel(5, 0), Rgba([5, 0, 0, 255]));
+            assert_eq!(image.dimensions(), dimensions);
+            assert_eq!(*image.get_pixel(0, 0), Rgba(first));
+            assert_eq!(
+                *image.get_pixel(dimensions.0 - 1, dimensions.1 - 1),
+                Rgba(last)
+            );
+        }
     }
 
     #[test]

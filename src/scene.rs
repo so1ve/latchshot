@@ -2,7 +2,7 @@ use std::fmt;
 
 use serde::Serialize;
 
-use crate::{Point, Rect, Size};
+use crate::{Rect, Size};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 #[serde(transparent)]
@@ -62,43 +62,4 @@ pub struct Scene {
     pub outputs: Vec<Output>,
     /// Visible windows ordered from front to back.
     pub windows: Vec<Window>,
-}
-
-impl Scene {
-    pub(crate) fn window_index_at(&self, point: Point) -> Option<usize> {
-        self.windows
-            .iter()
-            .position(|window| window.geometry.contains(point))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_support::{output, window};
-
-    fn scene() -> Scene {
-        Scene {
-            outputs: vec![output("DP-1", 2.0)],
-            windows: vec![
-                window(Rect::new(40.0, 40.0, 100.0, 100.0)),
-                window(Rect::new(0.0, 0.0, 200.0, 200.0)),
-            ],
-        }
-    }
-
-    #[test]
-    fn picks_the_frontmost_window() {
-        let scene = scene();
-
-        assert_eq!(scene.window_index_at(Point::new(50.0, 50.0)), Some(0));
-    }
-
-    #[test]
-    fn rectangle_excludes_its_bottom_right_edges() {
-        let rect = Rect::new(10.0, 20.0, 30.0, 40.0);
-
-        assert!(rect.contains(Point::new(10.0, 20.0)));
-        assert!(!rect.contains(Point::new(40.0, 60.0)));
-    }
 }

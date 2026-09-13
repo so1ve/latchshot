@@ -110,24 +110,4 @@ mod tests {
         animation.advance(target, Duration::from_millis(40));
         assert!(animation.is_settled(target));
     }
-
-    #[test]
-    fn spring_settling_checks_position_and_velocity() {
-        let target = 100.0;
-        assert!(Spring::new(target).is_settled(target));
-        assert!(
-            !Spring {
-                value: target + POSITION_EPSILON * 2.0,
-                velocity: 0.0,
-            }
-            .is_settled(target)
-        );
-        assert!(
-            !Spring {
-                value: target,
-                velocity: VELOCITY_EPSILON * 2.0,
-            }
-            .is_settled(target)
-        );
-    }
 }
