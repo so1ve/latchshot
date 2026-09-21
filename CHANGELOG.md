@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1](https://github.com/so1ve/latchshot/compare/v0.3.0...v0.3.1) - 2026-09-21
+
+### Fixed
+
+- move around overlay instead of re-rendering pixels to bypass
+
+### Other
+
+- *(deps)* lock file maintenance ([#18](https://github.com/so1ve/latchshot/pull/18))
+- *(deps)* update rust crate clap to v4.6.7 ([#17](https://github.com/so1ve/latchshot/pull/17))
+- *(deps)* lock file maintenance ([#15](https://github.com/so1ve/latchshot/pull/15))
+- bump rust-overlay and fmt
+- use nightly rust
+- simplify code
+
 ## [0.3.0](https://github.com/so1ve/latchshot/compare/v0.2.5...v0.3.0) - 2026-09-08
 
 ### Added
