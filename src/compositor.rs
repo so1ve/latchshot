@@ -55,7 +55,7 @@ pub enum Compositor {
 
 impl Compositor {
     /// The environment variable that signals this compositor.
-    const fn env_var(self) -> Option<&'static str> {
+    fn env_var(self) -> Option<&'static str> {
         match self {
             #[cfg(feature = "niri")]
             Self::Niri => Some("NIRI_SOCKET"),
@@ -70,7 +70,6 @@ impl Compositor {
     }
 
     /// Detects the running compositor from environment markers.
-    #[must_use]
     pub fn detect() -> Option<Self> {
         for backend in Self::value_variants() {
             let Some(env_var) = backend.env_var() else {
@@ -110,7 +109,6 @@ impl Compositor {
     }
 
     /// Creates the compositor-specific window capture path, when one exists.
-    #[must_use]
     pub fn window_capturer(self) -> Option<Box<dyn WindowCapture>> {
         #[cfg(feature = "niri-capture")]
         if self == Self::Niri {

@@ -7,12 +7,10 @@ pub struct Point {
 }
 
 impl Point {
-    #[must_use]
-    pub const fn new(x: f64, y: f64) -> Self {
+    pub fn new(x: f64, y: f64) -> Self {
         Self { x, y }
     }
 
-    #[must_use]
     pub fn distance_squared(self, other: Self) -> f64 {
         let dx = self.x - other.x;
         let dy = self.y - other.y;
@@ -28,8 +26,7 @@ pub struct Size {
 }
 
 impl Size {
-    #[must_use]
-    pub const fn new(width: f64, height: f64) -> Self {
+    pub fn new(width: f64, height: f64) -> Self {
         Self { width, height }
     }
 }
@@ -41,15 +38,13 @@ pub struct Rect {
 }
 
 impl Rect {
-    #[must_use]
-    pub const fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
+    pub fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
         Self {
             origin: Point::new(x, y),
             size: Size::new(width, height),
         }
     }
 
-    #[must_use]
     pub fn from_points(a: Point, b: Point) -> Self {
         let left = a.x.min(b.x);
         let top = a.y.min(b.y);
@@ -57,43 +52,35 @@ impl Rect {
         Self::new(left, top, (a.x - b.x).abs(), (a.y - b.y).abs())
     }
 
-    #[must_use]
-    pub const fn left(self) -> f64 {
+    pub fn left(self) -> f64 {
         self.origin.x
     }
 
-    #[must_use]
-    pub const fn top(self) -> f64 {
+    pub fn top(self) -> f64 {
         self.origin.y
     }
 
-    #[must_use]
-    pub const fn right(self) -> f64 {
+    pub fn right(self) -> f64 {
         self.left() + self.width()
     }
 
-    #[must_use]
-    pub const fn bottom(self) -> f64 {
+    pub fn bottom(self) -> f64 {
         self.top() + self.height()
     }
 
-    #[must_use]
-    pub const fn width(self) -> f64 {
+    pub fn width(self) -> f64 {
         self.size.width
     }
 
-    #[must_use]
-    pub const fn height(self) -> f64 {
+    pub fn height(self) -> f64 {
         self.size.height
     }
 
-    #[must_use]
     pub fn contains(self, point: Point) -> bool {
         (self.left() <= point.x && point.x < self.right())
             && (self.top() <= point.y && point.y < self.bottom())
     }
 
-    #[must_use]
     pub fn intersection(self, other: Self) -> Option<Self> {
         let left = self.left().max(other.left());
         let top = self.top().max(other.top());

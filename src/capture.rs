@@ -130,17 +130,14 @@ pub struct OutputFrame {
 }
 
 impl OutputFrame {
-    #[must_use]
     pub fn scale(&self) -> f64 {
         self.scale_x().max(self.scale_y())
     }
 
-    #[must_use]
     pub fn scale_x(&self) -> f64 {
         f64::from(self.image.width()) / self.logical_geometry.width()
     }
 
-    #[must_use]
     pub fn scale_y(&self) -> f64 {
         f64::from(self.image.height()) / self.logical_geometry.height()
     }
@@ -162,7 +159,6 @@ impl DesktopFrame {
     /// # Panics
     ///
     /// Panics if `region` does not intersect any captured output.
-    #[must_use]
     pub fn crop(&self, region: Rect) -> RgbaImage {
         let frames = self
             .outputs

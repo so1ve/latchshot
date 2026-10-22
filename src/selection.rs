@@ -14,8 +14,7 @@ pub enum Selection {
 }
 
 impl Selection {
-    #[must_use]
-    pub const fn geometry(&self) -> Rect {
+    pub fn geometry(&self) -> Rect {
         match self {
             Self::Window(window) => window.geometry,
             Self::Region(region) => *region,
@@ -57,7 +56,6 @@ impl Selector {
     ///
     /// Pointer movement must reach `drag_threshold` logical pixels after a
     /// press before the interaction becomes a region drag.
-    #[must_use]
     pub fn new(scene: Scene, drag_threshold: f64) -> Self {
         Self {
             scene,
@@ -66,12 +64,10 @@ impl Selector {
         }
     }
 
-    #[must_use]
-    pub const fn scene(&self) -> &Scene {
+    pub fn scene(&self) -> &Scene {
         &self.scene
     }
 
-    #[must_use]
     pub fn target_geometry(&self) -> Option<Rect> {
         let target = match self.state {
             State::Hover { target, .. } | State::Pressed { target, .. } => target,
@@ -81,7 +77,6 @@ impl Selector {
         Some(self.scene.windows[target].geometry)
     }
 
-    #[must_use]
     pub fn region(&self) -> Option<Rect> {
         let State::Dragging { origin, pointer } = self.state else {
             return None;
@@ -91,7 +86,6 @@ impl Selector {
     }
 
     /// Selects the output containing the pointer.
-    #[must_use]
     pub fn select_fullscreen(&self) -> Option<SelectionResult> {
         let pointer = match self.state {
             State::Hover { pointer, .. } | State::Dragging { pointer, .. } => pointer,
@@ -124,7 +118,7 @@ impl Selector {
         };
     }
 
-    pub const fn press(&mut self) {
+    pub fn press(&mut self) {
         if let State::Hover { pointer, target } = self.state {
             self.state = State::Pressed {
                 origin: pointer,
@@ -192,7 +186,7 @@ mod tests {
         }
     }
 
-    const fn window(geometry: Rect) -> Window {
+    fn window(geometry: Rect) -> Window {
         Window {
             geometry,
             identifier: None,

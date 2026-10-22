@@ -49,7 +49,7 @@ struct PendingFrame {
     reveal: Option<PendingReveal>,
 }
 
-const fn multiply_channel(channel: u8, factor: u8) -> u8 {
+fn multiply_channel(channel: u8, factor: u8) -> u8 {
     ((channel as u16 * factor as u16 + 127) / 255) as u8
 }
 
@@ -240,7 +240,7 @@ impl OutputOverlay {
         }
     }
 
-    pub(super) const fn id(&self) -> &OutputId {
+    pub(super) fn id(&self) -> &OutputId {
         &self.id
     }
 
@@ -290,11 +290,11 @@ impl OutputOverlay {
         )
     }
 
-    pub(super) const fn mark_dirty(&mut self) {
+    pub(super) fn mark_dirty(&mut self) {
         self.dirty = true;
     }
 
-    pub(super) const fn frame_done(&mut self) {
+    pub(super) fn frame_done(&mut self) {
         let PendingFrame {
             continue_animation,
             reveal,

@@ -29,7 +29,7 @@ pub(super) struct NiriFallback {
 }
 
 impl NiriFallback {
-    pub(super) const fn new(niri: Niri) -> Self {
+    pub(super) fn new(niri: Niri) -> Self {
         Self {
             niri,
             snapshot: None,
@@ -47,15 +47,18 @@ impl SceneReader for NiriFallback {
         } else {
             self.niri.windows(&outputs)?
         };
-        let windows = if let Some(windows) = windows {
-            self.snapshot = None;
+        let windows = match windows {
+            Some(windows) => {
+                self.snapshot = None;
 
-            windows
-        } else {
-            warn!("reconstructing window geometry from standard Niri IPC");
-            self.snapshot = Some(Snapshot::read(&mut self.niri.socket)?);
+                windows
+            }
+            None => {
+                warn!("reconstructing window geometry from standard Niri IPC");
+                self.snapshot = Some(Snapshot::read(&mut self.niri.socket)?);
 
-            Vec::new()
+                Vec::new()
+            }
         };
 
         Ok(Scene { outputs, windows })

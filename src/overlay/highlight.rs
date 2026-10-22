@@ -24,7 +24,7 @@ enum Reveal {
 }
 
 impl Highlight {
-    pub(super) const fn new(enabled: bool) -> Self {
+    pub(super) fn new(enabled: bool) -> Self {
         Self {
             animation: None,
             clear_at: None,
@@ -100,7 +100,7 @@ impl Highlight {
         )
     }
 
-    pub(super) const fn clear(&mut self) {
+    pub(super) fn clear(&mut self) {
         self.animation = None;
         self.clear_at = None;
         self.reveal = Reveal::Waiting;
@@ -119,7 +119,7 @@ impl Highlight {
         })
     }
 
-    pub(super) const fn start_reveal(&mut self, now: Instant) {
+    pub(super) fn start_reveal(&mut self, now: Instant) {
         self.reveal = Reveal::Running(now);
     }
 }

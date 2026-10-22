@@ -13,7 +13,7 @@ struct Spring {
 }
 
 impl Spring {
-    const fn new(value: f64) -> Self {
+    fn new(value: f64) -> Self {
         Self {
             value,
             velocity: 0.0,
@@ -41,7 +41,6 @@ pub struct AnimatedRect {
 }
 
 impl AnimatedRect {
-    #[must_use]
     pub fn new(rect: Rect, settle_time: Duration) -> Self {
         debug_assert!(!settle_time.is_zero());
 
@@ -61,7 +60,6 @@ impl AnimatedRect {
         Rect::new(x, y, width, height)
     }
 
-    #[must_use]
     pub fn is_settled(&self, target: Rect) -> bool {
         let targets = [target.left(), target.top(), target.width(), target.height()];
 
