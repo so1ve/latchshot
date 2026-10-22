@@ -7,8 +7,8 @@
 //!
 //! # Cargo features
 //!
-//! All compositor integrations are enabled by default. Use `--no-default-features`
-//! and `--features` to select which ones to include:
+//! All compositor integrations are enabled by default. Use
+//! `--no-default-features` and `--features` to select which ones to include:
 //!
 //! | Feature | Capability |
 //! | --- | --- |
@@ -35,14 +35,23 @@
 //! against a frozen frame. The frame returned by [`overlay::select`] is the
 //! same frame to which the selected logical geometry refers.
 //!
+//! A selection identifies a window, a drawn region, or an entire output.
+//! [`capture_selection`] tries the supplied native window capture sources in
+//! order, then falls back to cropping the frozen desktop. Region selections
+//! are cropped, and output selections take the captured image without copying
+//! its pixels.
+//!
 //! ```no_run
 //! use anyhow::Result;
 //! use latchshot::output::{Target, write_to_targets};
 //! use latchshot::overlay::select;
-//! use latchshot::{Compositor, FrameCapture, Selection, SelectionResult, WaylandCapture};
+//! use latchshot::{
+//!     Compositor, FrameCapture, SelectionResult, WaylandCapture, WindowCapture, capture_selection,
+//! };
 //!
 //! fn main() -> Result<()> {
 //!     let compositor = Compositor::detect().unwrap_or(Compositor::Generic);
+//!     let mut compositor_capture = compositor.window_capturer();
 //!     let mut compositor = compositor.connect()?;
 //!     let mut scene = compositor.scene()?;
 //!
@@ -55,18 +64,21 @@
 //!         SelectionResult::Selected(selection) => selection,
 //!         SelectionResult::Cancelled => return Ok(()),
 //!     };
-//!     let region = selection.geometry();
+//!     let mut sources: Vec<&mut dyn WindowCapture> = vec![&mut capture];
+//!     if let Some(source) = compositor_capture.as_deref_mut() {
+//!         sources.push(source);
+//!     }
+//!     let image = capture_selection(frame, selection, &mut sources);
 //!
-//!     write_to_targets(
-//!         &frame.crop(region),
-//!         &[Target::File("screenshot.png".into())],
-//!     )?;
+//!     write_to_targets(&image, &[Target::File("screenshot.png".into())])?;
 //!     Ok(())
 //! }
 //! ```
 //!
 //! For a custom frontend, drive [`Selector`] with pointer events and use
-//! [`DesktopFrame::crop`] once it returns a [`SelectionResult`].
+//! [`capture_selection`] once it returns a [`SelectionResult`]. Pass an empty
+//! capture source slice, or call [`DesktopFrame::into_image`] directly, to use
+//! only the frozen desktop pixels.
 
 pub mod animation;
 pub mod capture;
@@ -78,7 +90,9 @@ pub mod scene;
 pub mod selection;
 
 pub use animation::AnimatedRect;
-pub use capture::{DesktopFrame, FrameCapture, OutputFrame, WaylandCapture, WindowCapture};
+pub use capture::{
+    DesktopFrame, FrameCapture, OutputFrame, WaylandCapture, WindowCapture, capture_selection,
+};
 pub use compositor::{Compositor, SceneReader};
 pub use geometry::{Point, Rect, Size};
 pub use scene::{Output, OutputId, OutputTransform, Scene, Window};

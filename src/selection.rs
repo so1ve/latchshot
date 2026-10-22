@@ -1,16 +1,17 @@
-//! UI-independent window and region selection.
+//! UI-independent window, region, and output selection.
 //!
 //! [`Selector`] can be driven by a custom frontend instead of the built-in
 //! [`crate::overlay`] UI. Feed it pointer events or call
 //! [`Selector::select_fullscreen`], then render [`Selector::target_geometry`]
 //! or [`Selector::region`].
 
-use crate::{Point, Rect, Scene, Window};
+use crate::{Output, Point, Rect, Scene, Window};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Selection {
     Window(Window),
     Region(Rect),
+    Output(Output),
 }
 
 impl Selection {
@@ -18,6 +19,7 @@ impl Selection {
         match self {
             Self::Window(window) => window.geometry,
             Self::Region(region) => *region,
+            Self::Output(output) => output.logical_geometry,
         }
     }
 }
@@ -92,14 +94,13 @@ impl Selector {
             State::Pressed { origin, .. } => origin,
             State::Waiting => return None,
         };
-        let geometry = self
+        let output = self
             .scene
             .outputs
             .iter()
-            .find(|output| output.logical_geometry.contains(pointer))?
-            .logical_geometry;
+            .find(|output| output.logical_geometry.contains(pointer))?;
 
-        Some(SelectionResult::Selected(Selection::Region(geometry)))
+        Some(SelectionResult::Selected(Selection::Output(output.clone())))
     }
 
     pub fn pointer_moved(&mut self, pointer: Point) {
@@ -174,7 +175,7 @@ impl Selector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Output, OutputId, OutputTransform, Size};
+    use crate::{OutputId, OutputTransform, Size};
 
     fn output(id: &str) -> Output {
         Output {
@@ -245,6 +246,7 @@ mod tests {
         left.logical_geometry = Rect::new(-1280.0, 100.0, 1280.0, 720.0);
         let mut right = output("right");
         right.logical_geometry = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+        let expected = Selection::Output(right.clone());
         let mut selector = Selector::new(
             Scene {
                 outputs: vec![left, right],
@@ -254,12 +256,13 @@ mod tests {
         );
         selector.pointer_moved(Point::new(0.0, 100.0));
 
-        assert_eq!(
-            selector.select_fullscreen(),
-            Some(SelectionResult::Selected(Selection::Region(Rect::new(
-                0.0, 0.0, 1920.0, 1080.0
-            ))))
-        );
+        let result = selector.select_fullscreen();
+
+        assert_eq!(result, Some(SelectionResult::Selected(expected)));
+        let Some(SelectionResult::Selected(selection)) = result else {
+            panic!("expected an output selection");
+        };
+        assert_eq!(selection.geometry(), Rect::new(0.0, 0.0, 1920.0, 1080.0));
     }
 
     #[test]

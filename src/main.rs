@@ -7,9 +7,9 @@ use clap::Parser;
 use latchshot::output::{Target, notify, write_to_targets};
 use latchshot::overlay::select;
 use latchshot::{
-    Compositor, FrameCapture, Selection, SelectionResult, WaylandCapture, Window, WindowCapture,
+    Compositor, FrameCapture, SelectionResult, WaylandCapture, WindowCapture, capture_selection,
 };
-use log::{info, warn};
+use log::info;
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -115,25 +115,14 @@ fn main() -> Result<()> {
         SelectionResult::Selected(selection) => selection,
         SelectionResult::Cancelled => return Ok(()),
     };
-    let image = match selection {
-        Selection::Window(window) => {
-            if args.prefer_crop {
-                info!("native window capture disabled by --prefer-crop");
-
-                frame.crop(window.geometry)
-            } else {
-                capture_window(&mut capture, &mut compositor_capture, &window).unwrap_or_else(
-                    || {
-                        info!(
-                            "native window capture unavailable; cropping the frozen desktop frame"
-                        );
-                        frame.crop(window.geometry)
-                    },
-                )
-            }
+    let mut sources: Vec<&mut dyn WindowCapture> = Vec::new();
+    if !args.prefer_crop {
+        sources.push(&mut capture);
+        if let Some(source) = compositor_capture.as_deref_mut() {
+            sources.push(source);
         }
-        Selection::Region(geometry) => frame.crop(geometry),
-    };
+    }
+    let image = capture_selection(frame, selection, &mut sources);
     drop(capture_lock);
 
     let notifications_enabled = !args.no_notify;
@@ -157,28 +146,6 @@ fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-fn capture_window(
-    capture: &mut dyn WindowCapture,
-    compositor: &mut Option<Box<dyn WindowCapture>>,
-    window: &Window,
-) -> Option<image::RgbaImage> {
-    match capture.capture_window(window) {
-        Ok(Some(image)) => return Some(image),
-        Ok(None) => {}
-        Err(error) => warn!("standard Wayland window capture failed: {error:#}"),
-    }
-
-    let compositor = compositor.as_deref_mut()?;
-    match compositor.capture_window(window) {
-        Ok(Some(image)) => Some(image),
-        Ok(None) => None,
-        Err(error) => {
-            warn!("compositor-specific window capture failed: {error:#}");
-            None
-        }
-    }
 }
 
 fn try_acquire_capture_lock() -> Result<Option<File>> {

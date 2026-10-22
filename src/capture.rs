@@ -6,9 +6,9 @@
 use anyhow::{Context, Result};
 use image::{RgbaImage, imageops};
 use libwayshot::WayshotConnection;
-use log::info;
+use log::{info, warn};
 
-use crate::{OutputId, Rect, Scene, Window};
+use crate::{OutputId, Rect, Scene, Selection, Window};
 
 /// A source of frozen desktop frames for a compositor [`Scene`].
 pub trait FrameCapture {
@@ -20,6 +20,39 @@ pub trait FrameCapture {
 pub trait WindowCapture {
     /// Returns `None` when this capture path cannot handle the window.
     fn capture_window(&mut self, window: &Window) -> Result<Option<RgbaImage>>;
+}
+
+/// Returns the selected image, trying native capture for window selections.
+///
+/// Window capture sources are tried in order until one returns an image.
+/// Errors are logged and the next source is tried. If no source succeeds, the
+/// window is cropped from the frozen frame. Pass an empty slice to force this
+/// path.
+///
+/// Region and output selections use the frozen frame without calling any
+/// window capture source. Output images are moved without copying their pixels.
+///
+/// # Panics
+///
+/// Panics under the same conditions as [`DesktopFrame::into_image`] when using
+/// the frozen frame.
+pub fn capture_selection(
+    frame: DesktopFrame,
+    selection: Selection,
+    window_captures: &mut [&mut dyn WindowCapture],
+) -> RgbaImage {
+    if let Selection::Window(window) = &selection {
+        for capture in window_captures {
+            match capture.capture_window(window) {
+                Ok(Some(image)) => return image,
+                Ok(None) => {}
+                Err(error) => warn!("native window capture failed: {error:#}"),
+            }
+        }
+        info!("cropping selected window from the frozen desktop frame");
+    }
+
+    frame.into_image(selection)
 }
 
 /// Wayland frame capture.
@@ -150,6 +183,29 @@ pub struct DesktopFrame {
 }
 
 impl DesktopFrame {
+    /// Consumes the desktop frame and returns the selected image.
+    ///
+    /// Output selections move the captured image without copying its pixels.
+    /// Window and region selections are cropped from the frozen desktop.
+    /// Use [`capture_selection`] when native window capture is desired.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a selected output was not captured, or if a selected window or
+    /// region does not intersect any captured output.
+    pub fn into_image(self, selection: Selection) -> RgbaImage {
+        match selection {
+            Selection::Output(output) => {
+                self.outputs
+                    .into_iter()
+                    .find(|frame| frame.output == output.id)
+                    .expect("selected output is missing from the captured desktop")
+                    .image
+            }
+            selection => self.crop(selection.geometry()),
+        }
+    }
+
     /// Crops a region expressed in global logical coordinates.
     ///
     /// Cross-output regions are rendered at the highest intersecting output's
@@ -170,8 +226,7 @@ impl DesktopFrame {
                     .map(|intersection| (frame, intersection))
             })
             .collect::<Vec<_>>();
-        // Fast path: If there's only one frame and it exactly matches the
-        // region, we can return it directly.
+        // Regions contained in one output need no resampling or compositing.
         if let [(frame, intersection)] = frames.as_slice()
             // Public API callers may pass regions extending beyond an output;
             // the slow path keeps their full size with transparent padding.
@@ -284,6 +339,15 @@ mod tests {
     use image::Rgba;
 
     use super::*;
+    use crate::{Output, OutputTransform, Size};
+
+    struct WindowCaptureFn<F>(F);
+
+    impl<F: FnMut(&Window) -> Result<Option<RgbaImage>>> WindowCapture for WindowCaptureFn<F> {
+        fn capture_window(&mut self, window: &Window) -> Result<Option<RgbaImage>> {
+            (self.0)(window)
+        }
+    }
 
     fn solid_frame(output: &str, geometry: Rect, scale: f64, color: Rgba<u8>) -> OutputFrame {
         let image = RgbaImage::from_pixel(
@@ -297,6 +361,117 @@ mod tests {
             logical_geometry: geometry,
             image,
         }
+    }
+
+    #[test]
+    fn native_capture_uses_the_first_available_source() {
+        let expected = RgbaImage::from_pixel(2, 1, Rgba([12, 34, 56, 90]));
+        let mut first = WindowCaptureFn(|window: &Window| {
+            assert_eq!(window.identifier.as_deref(), Some("window-1"));
+
+            Ok(Some(expected.clone()))
+        });
+        let mut later = WindowCaptureFn(|_: &Window| {
+            panic!("capture sources after a successful source must not be called")
+        });
+
+        let image = capture_selection(
+            DesktopFrame {
+                outputs: Vec::new(),
+            },
+            Selection::Window(Window {
+                geometry: Rect::new(0.0, 0.0, 2.0, 1.0),
+                identifier: Some("window-1".into()),
+            }),
+            &mut [&mut first, &mut later],
+        );
+
+        assert_eq!(image, expected);
+    }
+
+    #[test]
+    fn native_capture_continues_after_unavailable_or_failed_sources() {
+        let expected = RgbaImage::from_pixel(2, 1, Rgba([12, 34, 56, 90]));
+        for fail in [false, true] {
+            let mut first = WindowCaptureFn(|_: &Window| {
+                if fail {
+                    anyhow::bail!("native capture failed");
+                }
+
+                Ok(None)
+            });
+            let mut later = WindowCaptureFn(|_: &Window| Ok(Some(expected.clone())));
+
+            let image = capture_selection(
+                DesktopFrame {
+                    outputs: Vec::new(),
+                },
+                Selection::Window(Window {
+                    geometry: Rect::new(0.0, 0.0, 2.0, 1.0),
+                    identifier: None,
+                }),
+                &mut [&mut first, &mut later],
+            );
+
+            assert_eq!(image, expected);
+        }
+    }
+
+    #[test]
+    fn unsuccessful_native_sources_fall_back_to_the_frozen_frame() {
+        let desktop = DesktopFrame {
+            outputs: vec![OutputFrame {
+                output: OutputId::new("DP-1"),
+                logical_geometry: Rect::new(0.0, 0.0, 4.0, 4.0),
+                image: RgbaImage::from_fn(4, 4, |x, y| Rgba([x as u8, y as u8, 0, 255])),
+            }],
+        };
+        let mut unavailable = WindowCaptureFn(|_: &Window| Ok(None));
+        let mut failed = WindowCaptureFn(|_: &Window| anyhow::bail!("native capture failed"));
+
+        let image = capture_selection(
+            desktop,
+            Selection::Window(Window {
+                geometry: Rect::new(1.0, 1.0, 2.0, 2.0),
+                identifier: None,
+            }),
+            &mut [&mut unavailable, &mut failed],
+        );
+
+        assert_eq!(
+            image,
+            RgbaImage::from_fn(2, 2, |x, y| Rgba([(x + 1) as u8, (y + 1) as u8, 0, 255]))
+        );
+    }
+
+    #[test]
+    fn output_selection_moves_the_captured_image() {
+        let geometry = Rect::new(-4.0, 0.0, 4.0, 3.0);
+        let selected = solid_frame("selected", geometry, 2.0, Rgba([0, 0, 255, 255]));
+        let pixels = selected.image.as_ptr();
+        let desktop = DesktopFrame {
+            outputs: vec![
+                solid_frame("other", geometry, 1.0, Rgba([255, 0, 0, 255])),
+                selected,
+            ],
+        };
+        let selection = Selection::Output(Output {
+            id: OutputId::new("selected"),
+            logical_geometry: geometry,
+            pixel_size: Size::new(8.0, 6.0),
+            scale: 2.0,
+            transform: OutputTransform::Normal,
+        });
+
+        let mut native = WindowCaptureFn(|_: &Window| {
+            panic!("output selections must not request native window capture")
+        });
+
+        let image = capture_selection(desktop, selection, &mut [&mut native]);
+
+        assert_eq!(image.as_ptr(), pixels);
+        assert_eq!(image.dimensions(), (8, 6));
+        assert!(image.pixels().all(|pixel| *pixel == Rgba([0, 0, 255, 255])));
     }
 
     #[test]
@@ -366,13 +541,23 @@ mod tests {
             }],
         };
 
-        let image = desktop.crop(Rect::new(0.0, 1.0, 4.0, 1.0));
+        let image = capture_selection(
+            desktop,
+            Selection::Window(Window {
+                geometry: Rect::new(0.0, 1.0, 4.0, 1.0),
+                identifier: None,
+            }),
+            &mut [],
+        );
 
         assert!(image.pixels().all(|pixel| *pixel == Rgba([0, 0, 255, 255])));
     }
 
     #[test]
     fn crops_on_the_native_pixel_grid() {
+        let mut native = WindowCaptureFn(|_: &Window| {
+            panic!("region selections must not request native window capture")
+        });
         for (pixels, region, dimensions, first, last) in [
             (
                 8,
@@ -405,7 +590,7 @@ mod tests {
                     }),
                 }],
             };
-            let image = desktop.crop(region);
+            let image = capture_selection(desktop, Selection::Region(region), &mut [&mut native]);
 
             assert_eq!(image.dimensions(), dimensions);
             assert_eq!(*image.get_pixel(0, 0), Rgba(first));
