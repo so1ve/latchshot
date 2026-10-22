@@ -8,6 +8,7 @@ use std::env;
 use std::io::{self, BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 const SOCKET_PATH_ENV: &str = "NIRI_SOCKET";
@@ -31,7 +32,10 @@ impl Socket {
         })
     }
 
-    pub(super) fn send(&mut self, request: &Request) -> io::Result<Result<Response, String>> {
+    pub(super) fn send<T: DeserializeOwned>(
+        &mut self,
+        request: &impl Serialize,
+    ) -> io::Result<Result<T, String>> {
         let mut message = serde_json::to_vec(request)?;
         message.push(b'\n');
         self.stream.get_mut().write_all(&message)?;
@@ -51,30 +55,14 @@ impl Socket {
 #[derive(Serialize)]
 pub(super) enum Request {
     Outputs,
-    Workspaces,
     Windows,
-    OverviewState,
     WindowGeometries,
-    Action(Action),
-}
-
-#[derive(Serialize)]
-pub(super) enum Action {
-    ScreenshotWindow {
-        id: Option<u64>,
-        write_to_disk: bool,
-        show_pointer: bool,
-        path: Option<String>,
-    },
 }
 
 #[derive(Deserialize)]
 pub(super) enum Response {
-    Handled,
     Outputs(HashMap<String, Output>),
-    Workspaces(Vec<Workspace>),
     Windows(Vec<Window>),
-    OverviewState(Overview),
     WindowGeometries(Vec<WindowGeometry>),
 }
 
@@ -118,46 +106,6 @@ pub(super) enum Transform {
 #[derive(Deserialize)]
 pub(super) struct Window {
     pub(super) id: u64,
-    pub(super) workspace_id: Option<u64>,
-    #[serde(default)]
-    pub(super) is_floating: bool,
-    #[serde(default)]
-    pub(super) layout: WindowLayout,
-    pub(super) focus_timestamp: Option<Timestamp>,
-}
-
-#[derive(Default, Deserialize)]
-pub(super) struct WindowLayout {
-    #[serde(default)]
-    pub(super) pos_in_scrolling_layout: Option<(usize, usize)>,
-    #[serde(default)]
-    pub(super) tile_size: (f64, f64),
-    #[serde(default)]
-    pub(super) window_size: (f64, f64),
-    #[serde(default)]
-    pub(super) tile_pos_in_workspace_view: Option<(f64, f64)>,
-    #[serde(default)]
-    pub(super) window_offset_in_tile: (f64, f64),
-}
-
-#[derive(Clone, Copy, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) struct Timestamp {
-    secs: u64,
-    nanos: u32,
-}
-
-#[derive(Deserialize)]
-pub(super) struct Workspace {
-    pub(super) id: u64,
-    pub(super) output: Option<String>,
-    #[serde(default)]
-    pub(super) is_active: bool,
-    pub(super) active_window_id: Option<u64>,
-}
-
-#[derive(Deserialize)]
-pub(super) struct Overview {
-    pub(super) is_open: bool,
 }
 
 #[derive(Deserialize)]

@@ -64,6 +64,30 @@ With Cargo:
 cargo install latchshot
 ```
 
+### Cargo features
+
+All compositor integrations are enabled by default. Use `--no-default-features`
+and `--features` to select which ones to include:
+
+| Feature | Capability |
+| --- | --- |
+| `niri` | Niri IPC scene discovery, including the custom `WindowGeometries` extension |
+| `niri-fallback` | Heuristic window geometry reconstruction from standard Niri IPC and frozen output pixels; enables `niri` |
+| `niri-capture` | Native window screenshots through Niri's `ScreenshotWindow` IPC; enables `niri` |
+| `sway` | Sway IPC window discovery |
+| `hyprland` | Hyprland IPC window discovery |
+| `mango` | Mango IPC window discovery |
+
+For example, include Niri's exact geometry path and native capture without
+heuristic reconstruction or other compositor integrations:
+
+```toml
+latchshot = { version = "*", default-features = false, features = ["niri", "niri-capture"] }
+```
+
+The generic Wayland backend, standard Wayland capture, and free-form region
+selection are always available.
+
 ### Nix
 
 Run directly:

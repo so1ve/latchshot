@@ -12,10 +12,15 @@ use log::debug;
 use crate::{DesktopFrame, Scene, WindowCapture};
 
 mod generic;
+#[cfg(feature = "hyprland")]
 mod hyprland;
+#[cfg(any(feature = "hyprland", feature = "mango"))]
 mod ipc;
+#[cfg(feature = "mango")]
 mod mango;
+#[cfg(feature = "niri")]
 mod niri;
+#[cfg(feature = "sway")]
 mod sway;
 
 /// Reads the output and window geometry needed by the capture and selection
@@ -37,9 +42,13 @@ pub trait SceneReader {
 /// Compositor backends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum Compositor {
+    #[cfg(feature = "niri")]
     Niri,
+    #[cfg(feature = "sway")]
     Sway,
+    #[cfg(feature = "hyprland")]
     Hyprland,
+    #[cfg(feature = "mango")]
     Mango,
     Generic,
 }
@@ -48,9 +57,13 @@ impl Compositor {
     /// The environment variable that signals this compositor.
     const fn env_var(self) -> Option<&'static str> {
         match self {
+            #[cfg(feature = "niri")]
             Self::Niri => Some("NIRI_SOCKET"),
+            #[cfg(feature = "sway")]
             Self::Sway => Some("SWAYSOCK"),
+            #[cfg(feature = "hyprland")]
             Self::Hyprland => Some("HYPRLAND_INSTANCE_SIGNATURE"),
+            #[cfg(feature = "mango")]
             Self::Mango => Some("MANGO_INSTANCE_SIGNATURE"),
             Self::Generic => None,
         }
@@ -81,9 +94,13 @@ impl Compositor {
     /// Connects to the selected scene backend.
     pub fn connect(self) -> Result<Box<dyn SceneReader>> {
         match self {
-            Self::Niri => Ok(Box::new(niri::Niri::connect()?)),
+            #[cfg(feature = "niri")]
+            Self::Niri => niri::connect(),
+            #[cfg(feature = "sway")]
             Self::Sway => Ok(Box::new(sway::Sway::connect()?)),
+            #[cfg(feature = "hyprland")]
             Self::Hyprland => Ok(Box::new(hyprland::Hyprland::connect()?)),
+            #[cfg(feature = "mango")]
             Self::Mango => Ok(Box::new(mango::Mango::connect()?)),
             Self::Generic => {
                 debug!("using generic Wayland scene discovery");
@@ -95,10 +112,12 @@ impl Compositor {
     /// Creates the compositor-specific window capture path, when one exists.
     #[must_use]
     pub fn window_capturer(self) -> Option<Box<dyn WindowCapture>> {
-        match self {
-            Self::Niri => Some(Box::new(niri::NiriWindowCapture)),
-            Self::Sway | Self::Hyprland | Self::Mango | Self::Generic => None,
+        #[cfg(feature = "niri-capture")]
+        if self == Self::Niri {
+            return Some(Box::new(niri::NiriWindowCapture));
         }
+
+        None
     }
 }
 

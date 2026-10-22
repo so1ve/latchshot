@@ -5,26 +5,86 @@
 
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
+use std::env;
 
 use anyhow::{Context, Result};
 use image::RgbaImage;
 use log::{debug, warn};
 
-use super::ipc::{Request, Response, Socket, Window as IpcWindow, Workspace};
+use self::ipc::{Request, Response, Window as IpcWindow, Workspace};
+use super::Niri;
+use super::ipc::Socket;
+use crate::compositor::SceneReader;
 use crate::{DesktopFrame, Output, OutputFrame, Rect, Scene, Window};
+
+mod ipc;
 
 const EDGE_SAMPLES: u32 = 96;
 const MIN_EDGE_STRENGTH: f64 = 12.0;
 const MIN_VISIBLE_WINDOW_FRACTION: f64 = 0.01;
 
-pub(super) struct Snapshot {
+pub(super) struct NiriFallback {
+    niri: Niri,
+    snapshot: Option<Snapshot>,
+}
+
+impl NiriFallback {
+    pub(super) const fn new(niri: Niri) -> Self {
+        Self {
+            niri,
+            snapshot: None,
+        }
+    }
+}
+
+impl SceneReader for NiriFallback {
+    fn scene(&mut self) -> Result<Scene> {
+        let outputs = self.niri.outputs()?;
+        let windows = if env::var_os("LATCHSHOT_NIRI_FORCE_FALLBACK").is_some() {
+            warn!("forcing window geometry reconstruction from standard Niri IPC");
+
+            None
+        } else {
+            self.niri.windows(&outputs)?
+        };
+        let windows = if let Some(windows) = windows {
+            self.snapshot = None;
+
+            windows
+        } else {
+            warn!("reconstructing window geometry from standard Niri IPC");
+            self.snapshot = Some(Snapshot::read(&mut self.niri.socket)?);
+
+            Vec::new()
+        };
+
+        Ok(Scene { outputs, windows })
+    }
+
+    fn refine_scene(&mut self, scene: &mut Scene, frame: &DesktopFrame) -> Result<()> {
+        if let Some(snapshot) = &self.snapshot {
+            scene.windows = reconstruct(snapshot, scene, frame);
+        }
+
+        Ok(())
+    }
+}
+
+struct Snapshot {
     windows: Vec<IpcWindow>,
     workspaces: Vec<Workspace>,
     overview_open: bool,
 }
 
 impl Snapshot {
-    pub(super) fn read(socket: &mut Socket, windows: Vec<IpcWindow>) -> Result<Self> {
+    fn read(socket: &mut Socket) -> Result<Self> {
+        let Response::Windows(windows) = socket
+            .send(&Request::Windows)
+            .context("failed to communicate with Niri")?
+            .map_err(anyhow::Error::msg)?
+        else {
+            panic!("Niri returned an unexpected response to Windows");
+        };
         let Response::Workspaces(workspaces) = socket
             .send(&Request::Workspaces)
             .context("failed to communicate with Niri")?
@@ -52,11 +112,7 @@ impl Snapshot {
     }
 }
 
-pub(super) fn reconstruct(
-    snapshot: &Snapshot,
-    scene: &Scene,
-    desktop: &DesktopFrame,
-) -> Vec<Window> {
+fn reconstruct(snapshot: &Snapshot, scene: &Scene, desktop: &DesktopFrame) -> Vec<Window> {
     if snapshot.overview_open {
         debug!("Niri overview is open; window reconstruction is unavailable");
 
@@ -646,7 +702,7 @@ mod tests {
             id,
             workspace_id: Some(1),
             is_floating: false,
-            layout: super::super::ipc::WindowLayout {
+            layout: ipc::WindowLayout {
                 pos_in_scrolling_layout: Some((column, 1)),
                 tile_size,
                 window_size,

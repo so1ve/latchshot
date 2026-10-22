@@ -6,6 +6,15 @@ description = "A lightweight yet intelligent window-aware screenshot tool"
 repository = "https://github.com/so1ve/latchshot"
 license = "MIT"
 
+[features]
+default = ["niri", "niri-fallback", "niri-capture", "sway", "hyprland", "mango"]
+niri = []
+niri-fallback = ["niri"]
+niri-capture = ["niri"]
+sway = []
+hyprland = []
+mango = []
+
 [dependencies]
 anyhow = "1.0.104"
 clap = { version = "4.6.6", features = ["derive"] }
