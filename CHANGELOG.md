@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0](https://github.com/so1ve/latchshot/compare/v0.3.0...v0.4.0) - 2026-10-26
+
+### Added
+
+- explicitly return `Selection::Output` variant to identify a fullscreen capture
+
+### Fixed
+
+- move around overlay instead of re-rendering pixels to bypass
+
+### Other
+
+- *(deps)* lock file maintenance ([#28](https://github.com/so1ve/latchshot/pull/28))
+- reduce clippy noise
+- add features gates for compositor integrations
+- *(deps)* lock file maintenance ([#27](https://github.com/so1ve/latchshot/pull/27))
+- *(deps)* lock file maintenance ([#25](https://github.com/so1ve/latchshot/pull/25))
+- *(deps)* update rust crate serde_json to v1.0.154 ([#24](https://github.com/so1ve/latchshot/pull/24))
+- *(deps)* update rust crate serde_json to v1.0.152 ([#23](https://github.com/so1ve/latchshot/pull/23))
+- *(deps)* update rust crate notify-rust to v4.18.2 ([#22](https://github.com/so1ve/latchshot/pull/22))
+- *(deps)* lock file maintenance ([#21](https://github.com/so1ve/latchshot/pull/21))
+- remove reductant build step
+- *(deps)* lock file maintenance ([#20](https://github.com/so1ve/latchshot/pull/20))
+- *(deps)* update rust crate notify-rust to v4.18.1 ([#19](https://github.com/so1ve/latchshot/pull/19))
+- *(deps)* lock file maintenance ([#18](https://github.com/so1ve/latchshot/pull/18))
+- *(deps)* update rust crate clap to v4.6.7 ([#17](https://github.com/so1ve/latchshot/pull/17))
+- *(deps)* lock file maintenance ([#15](https://github.com/so1ve/latchshot/pull/15))
+- bump rust-overlay and fmt
+- use nightly rust
+- simplify code
+
 ## [0.3.0](https://github.com/so1ve/latchshot/compare/v0.2.5...v0.3.0) - 2026-09-08
 
 ### Added
