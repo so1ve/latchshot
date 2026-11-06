@@ -9,7 +9,7 @@ use anyhow::Result;
 use clap::ValueEnum;
 use log::debug;
 
-use crate::{DesktopFrame, Scene, WindowCapture};
+use crate::{Scene, WindowCapture};
 
 mod generic;
 #[cfg(feature = "hyprland")]
@@ -28,15 +28,6 @@ mod sway;
 pub trait SceneReader {
     /// Returns a snapshot in global logical coordinates.
     fn scene(&mut self) -> Result<Scene>;
-
-    /// Refines scene geometry against the frozen desktop frame.
-    ///
-    /// Most compositors already expose exact geometry and keep the default
-    /// no-op. Backends whose IPC omits on-screen positions can recover them
-    /// here without taking a second, potentially different screenshot.
-    fn refine_scene(&mut self, _scene: &mut Scene, _frame: &DesktopFrame) -> Result<()> {
-        Ok(())
-    }
 }
 
 /// Compositor backends.
@@ -94,7 +85,7 @@ impl Compositor {
     pub fn connect(self) -> Result<Box<dyn SceneReader>> {
         match self {
             #[cfg(feature = "niri")]
-            Self::Niri => niri::connect(),
+            Self::Niri => Ok(Box::new(niri::Niri::connect()?)),
             #[cfg(feature = "sway")]
             Self::Sway => Ok(Box::new(sway::Sway::connect()?)),
             #[cfg(feature = "hyprland")]

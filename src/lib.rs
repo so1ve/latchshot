@@ -12,15 +12,14 @@
 //!
 //! | Feature | Capability |
 //! | --- | --- |
-//! | `niri` | Niri IPC scene discovery, including the custom `WindowGeometries` extension |
-//! | `niri-fallback` | Heuristic window geometry reconstruction from standard Niri IPC and frozen output pixels; enables `niri` |
+//! | `niri` | Niri IPC scene discovery |
 //! | `niri-capture` | Native window screenshots through Niri's `ScreenshotWindow` IPC; enables `niri` |
 //! | `sway` | Sway IPC window discovery |
 //! | `hyprland` | Hyprland IPC window discovery |
 //! | `mango` | Mango IPC window discovery |
 //!
-//! For example, include Niri's exact geometry path and native capture without
-//! heuristic reconstruction or other compositor integrations:
+//! For example, include Niri and its native capture path without other
+//! compositor integrations:
 //!
 //! ```toml
 //! latchshot = { version = "*", default-features = false, features = ["niri", "niri-capture"] }
@@ -57,7 +56,6 @@
 //!
 //!     let mut capture = WaylandCapture::connect()?;
 //!     let frame = capture.capture(&scene)?;
-//!     compositor.refine_scene(&mut scene, &frame)?;
 //!
 //!     let (result, frame) = select(scene, frame, true)?;
 //!     let selection = match result {

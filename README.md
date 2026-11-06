@@ -20,8 +20,7 @@ Latchshot targets compositors that expose the Wayland protocols needed by its cu
 
 | Compositor | Status | Selection support |
 | --- | --- | --- |
-| [Niri (with a customized fork)](https://github.com/so1ve/niri/tree/feat/latchshot-support) | Supported | Window snapping and free-form regions |
-| [Upstream Niri](https://github.com/niri-wm/niri) | Supported but limited | Window snapping and free-form regions |
+| [Niri](https://github.com/niri-wm/niri) | Supported | Window snapping and free-form regions |
 | [Sway](https://github.com/swaywm/sway) | Supported | Window snapping and free-form regions |
 | [Hyprland](https://github.com/hyprwm/Hyprland) | Supported | Window snapping and free-form regions |
 | [Mango](https://github.com/mangowm/mango) | Supported | Window snapping and free-form regions |
@@ -30,8 +29,6 @@ Latchshot targets compositors that expose the Wayland protocols needed by its cu
 | GNOME | Intentionally unsupported | — |
 
 The `generic` backend is selected automatically for unknown compositors.
-
-When upstream Niri rejects the custom `WindowGeometries` request, Latchshot reconstructs visible window positions from standard Niri IPC layout metadata and the frozen output pixels. **If an output cannot be resolved unambiguously, window snapping is disabled for that output rather than guessing.**
 
 KDE Plasma and GNOME remain intentionally out of scope because Latchshot targets this protocol stack rather than portal- or desktop-shell-specific screenshot flows.
 
@@ -71,15 +68,14 @@ and `--features` to select which ones to include:
 
 | Feature | Capability |
 | --- | --- |
-| `niri` | Niri IPC scene discovery, including the custom `WindowGeometries` extension |
-| `niri-fallback` | Heuristic window geometry reconstruction from standard Niri IPC and frozen output pixels; enables `niri` |
+| `niri` | Niri IPC scene discovery |
 | `niri-capture` | Native window screenshots through Niri's `ScreenshotWindow` IPC; enables `niri` |
 | `sway` | Sway IPC window discovery |
 | `hyprland` | Hyprland IPC window discovery |
 | `mango` | Mango IPC window discovery |
 
-For example, include Niri's exact geometry path and native capture without
-heuristic reconstruction or other compositor integrations:
+For example, include Niri and its native capture path without other compositor
+integrations:
 
 ```toml
 latchshot = { version = "*", default-features = false, features = ["niri", "niri-capture"] }
@@ -201,12 +197,6 @@ Print the discovered scene as JSON for diagnostics:
 
 ```sh
 latchshot --windows
-```
-
-Force Niri's standard-IPC window reconstruction path for diagnostics:
-
-```sh
-LATCHSHOT_NIRI_FORCE_FALLBACK=1 latchshot
 ```
 
 Run `latchshot --help` for all options. Set `RUST_LOG=latchshot=debug` for additional diagnostics.

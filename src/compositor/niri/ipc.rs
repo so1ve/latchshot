@@ -1,7 +1,4 @@
 //! Minimal blocking client for the subset of Niri's JSON IPC used here.
-//!
-//! Keeping the wire types local lets latchshot speak the custom
-//! `WindowGeometries` extension without depending on an unpublished Git crate.
 
 use std::collections::HashMap;
 use std::env;
@@ -55,15 +52,15 @@ impl Socket {
 #[derive(Serialize)]
 pub(super) enum Request {
     Outputs,
+    Workspaces,
     Windows,
-    WindowGeometries,
 }
 
 #[derive(Deserialize)]
 pub(super) enum Response {
     Outputs(HashMap<String, Output>),
+    Workspaces(Vec<Workspace>),
     Windows(Vec<Window>),
-    WindowGeometries(Vec<WindowGeometry>),
 }
 
 #[derive(Deserialize)]
@@ -106,14 +103,19 @@ pub(super) enum Transform {
 #[derive(Deserialize)]
 pub(super) struct Window {
     pub(super) id: u64,
+    pub(super) workspace_id: Option<u64>,
+    pub(super) layout: WindowLayout,
 }
 
 #[derive(Deserialize)]
-pub(super) struct WindowGeometry {
+pub(super) struct WindowLayout {
+    pub(super) tile_size: (f64, f64),
+    pub(super) tile_pos_in_workspace_view: Option<(f64, f64)>,
+}
+
+#[derive(Deserialize)]
+pub(super) struct Workspace {
     pub(super) id: u64,
-    pub(super) output: String,
-    pub(super) x: f64,
-    pub(super) y: f64,
-    pub(super) width: f64,
-    pub(super) height: f64,
+    pub(super) output: Option<String>,
+    pub(super) is_active: bool,
 }

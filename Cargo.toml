@@ -7,9 +7,8 @@ repository = "https://github.com/so1ve/latchshot"
 license = "MIT"
 
 [features]
-default = ["niri", "niri-fallback", "niri-capture", "sway", "hyprland", "mango"]
+default = ["niri", "niri-capture", "sway", "hyprland", "mango"]
 niri = []
-niri-fallback = ["niri"]
 niri-capture = ["niri"]
 sway = []
 hyprland = []

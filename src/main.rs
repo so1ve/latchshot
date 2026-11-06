@@ -89,14 +89,13 @@ fn main() -> Result<()> {
     info!("compositor backend: {compositor}");
     let mut compositor_capture = compositor.window_capturer();
     let mut compositor = compositor.connect()?;
-    let mut scene = compositor.scene()?;
+    let scene = compositor.scene()?;
     if scene.outputs.is_empty() {
         bail!("the compositor reported no active outputs");
     }
 
     let mut capture = WaylandCapture::connect()?;
     let frame = capture.capture(&scene)?;
-    compositor.refine_scene(&mut scene, &frame)?;
     info!(
         "scene: {} outputs, {} windows",
         scene.outputs.len(),

@@ -1,50 +1,36 @@
-// FIXME: Keep the local wire types aligned with upstream Niri IPC and the
-// custom fork.
+//! Niri scene discovery through its standard JSON IPC.
+
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
-use log::warn;
 
 #[cfg(feature = "niri-capture")]
 pub(super) use self::capture::NiriWindowCapture;
-use self::ipc::{Request, Response, Socket, Transform};
+use self::ipc::{Request, Response, Socket, Transform, Window as IpcWindow, Workspace};
 use super::SceneReader;
 use crate::{Output, OutputId, OutputTransform, Rect, Scene, Size, Window};
 
 #[cfg(feature = "niri-capture")]
 mod capture;
-#[cfg(feature = "niri-fallback")]
-mod fallback;
 mod ipc;
 
-pub(super) fn connect() -> Result<Box<dyn SceneReader>> {
-    let niri = Niri::connect()?;
-    #[cfg(feature = "niri-fallback")]
-    let niri = fallback::NiriFallback::new(niri);
-
-    Ok(Box::new(niri))
-}
-
 /// [niri](https://github.com/niri-wm/niri) window discovery.
-struct Niri {
+pub(super) struct Niri {
     socket: Socket,
 }
 
 impl Niri {
-    fn connect() -> Result<Self> {
+    pub(super) fn connect() -> Result<Self> {
         let socket = Socket::connect().context("failed to connect to the Niri IPC socket")?;
 
         Ok(Self { socket })
     }
 
-    fn request_raw(&mut self, request: &Request) -> Result<Result<Response, String>> {
+    fn request(&mut self, request: &Request) -> Result<Response> {
         self.socket
             .send(request)
-            .context("failed to communicate with Niri")
-    }
-
-    fn request(&mut self, request: &Request) -> Result<Response> {
-        self.request_raw(request)?.map_err(anyhow::Error::msg)
+            .context("failed to communicate with Niri")?
+            .map_err(anyhow::Error::msg)
     }
 
     fn outputs(&mut self) -> Result<Vec<Output>> {
@@ -94,63 +80,66 @@ impl Niri {
         Ok(outputs)
     }
 
-    fn windows(&mut self, outputs: &[Output]) -> Result<Option<Vec<Window>>> {
-        let geometries = match self.request_raw(&Request::WindowGeometries)? {
-            Ok(Response::WindowGeometries(geometries)) => geometries,
-            Ok(_) => panic!("Niri returned an unexpected response to WindowGeometries"),
-            Err(error) => {
-                warn!("Niri rejected WindowGeometries: {error}");
-
-                return Ok(None);
-            }
+    fn windows(&mut self, outputs: &[Output]) -> Result<Vec<Window>> {
+        let Response::Workspaces(workspaces) = self.request(&Request::Workspaces)? else {
+            panic!("Niri returned an unexpected response to Workspaces");
         };
         let Response::Windows(ipc_windows) = self.request(&Request::Windows)? else {
             panic!("Niri returned an unexpected response to Windows");
         };
-        let output_by_name = outputs
-            .iter()
-            .map(|output| (output.id.as_str(), output))
-            .collect::<HashMap<_, _>>();
-        let geometries = geometries
-            .into_iter()
-            .map(|geometry| (geometry.id, geometry))
-            .collect::<HashMap<_, _>>();
 
-        // Preserve stacking order; skip entries lost between IPC snapshots.
-        let windows = ipc_windows
-            .into_iter()
-            .filter_map(|window| {
-                let geometry = geometries.get(&window.id)?;
-                let output = output_by_name.get(geometry.output.as_str())?;
-
-                let geometry = Rect::new(
-                    output.logical_geometry.left() + geometry.x,
-                    output.logical_geometry.top() + geometry.y,
-                    geometry.width,
-                    geometry.height,
-                );
-                let geometry = geometry.intersection(output.logical_geometry)?;
-
-                Some(Window {
-                    geometry,
-                    identifier: Some(window.id.to_string()),
-                })
-            })
-            .collect();
-
-        Ok(Some(windows))
+        Ok(visible_windows(ipc_windows, &workspaces, outputs))
     }
 }
 
 impl SceneReader for Niri {
     fn scene(&mut self) -> Result<Scene> {
         let outputs = self.outputs()?;
-        let windows = self.windows(&outputs)?.unwrap_or_else(|| {
-            warn!("window snapping is unavailable because niri-fallback is disabled");
-
-            Vec::new()
-        });
+        let windows = self.windows(&outputs)?;
 
         Ok(Scene { outputs, windows })
     }
+}
+
+fn visible_windows(
+    ipc_windows: Vec<IpcWindow>,
+    workspaces: &[Workspace],
+    outputs: &[Output],
+) -> Vec<Window> {
+    let output_by_name = outputs
+        .iter()
+        .map(|output| (output.id.as_str(), output))
+        .collect::<HashMap<_, _>>();
+    let output_by_workspace = workspaces
+        .iter()
+        .filter(|workspace| workspace.is_active)
+        .filter_map(|workspace| {
+            let output = *output_by_name.get(workspace.output.as_deref()?)?;
+
+            Some((workspace.id, output))
+        })
+        .collect::<HashMap<_, _>>();
+
+    // Preserve stacking order; skip entries lost between IPC snapshots or
+    // currently outside their workspace view.
+    ipc_windows
+        .into_iter()
+        .filter_map(|ipc_window| {
+            let (x, y) = ipc_window.layout.tile_pos_in_workspace_view?;
+            let output = *output_by_workspace.get(&ipc_window.workspace_id?)?;
+            let (width, height) = ipc_window.layout.tile_size;
+            let geometry = Rect::new(
+                output.logical_geometry.left() + x,
+                output.logical_geometry.top() + y,
+                width,
+                height,
+            )
+            .intersection(output.logical_geometry)?;
+
+            Some(Window {
+                geometry,
+                identifier: Some(ipc_window.id.to_string()),
+            })
+        })
+        .collect()
 }
