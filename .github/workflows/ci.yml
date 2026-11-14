@@ -25,10 +25,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: accept-flake-config = true
       - run: nix fmt -- --ci
       - run: nix flake check --all-systems
 
   build:
+    permissions:
+      contents: read
+      packages: write
     name: Build ${{ matrix.system }}
     strategy:
       fail-fast: false
@@ -47,11 +52,12 @@ jobs:
           toolchain: nightly
       - uses: ./.github/actions/setup-rust-ci
       - uses: cachix/install-nix-action@v31
-      - uses: cachix/cachix-action@v17
         with:
-          name: so1ve
-          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-          skipPush: ${{ github.event_name == 'pull_request' }}
+          extra_nix_config: accept-flake-config = true
+      - uses: so1ve/nur-packages/.github/actions/setup-cache@main
+        if: github.event_name != 'pull_request'
+        with:
+          signing-key: ${{ secrets.ORANC_SIGNING_KEY }}
       - run: nix build ".#packages.${{ matrix.system }}.default" --print-build-logs
       - run: cargo build --locked --release
       - run: mv target/release/latchshot "latchshot-${{ matrix.target }}"
