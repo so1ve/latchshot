@@ -489,9 +489,9 @@ dependencies = [
 
 [[package]]
 name = "libwayshot"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2091a51ba887965be06c011f7d5b90f3c706791892359f8af5aa0a81a15a310e"
+checksum = "f970abf8d42b2b2d66b7f2ac5522199bebdbc74592ab9dd4ddacf731a3c48cb3"
 dependencies = [
  "image",
  "memmap2",
