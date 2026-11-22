@@ -55,10 +55,10 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: accept-flake-config = true
-      - uses: so1ve/firn@main
+      - uses: so1ve/firn@v1
         with:
           server: https://cache.so1ve.dev
-      - run: nix build ".#packages.${{ matrix.system }}.default" --print-build-logs
+      - run: nix build ".#packages.${{ matrix.system }}.default" --print-build-logs --print-out-paths >> "$FIRN_PATHS_FILE"
       - run: cargo build --locked --release
       - run: mv target/release/latchshot "latchshot-${{ matrix.target }}"
       - uses: actions/upload-artifact@v7
