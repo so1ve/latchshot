@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1](https://github.com/so1ve/latchshot/compare/v0.4.0...v0.4.1) - 2026-11-25
+
+### Other
+
+- *(deps)* update rust crate clap to v4.6.10 ([#40](https://github.com/so1ve/latchshot/pull/40))
+
 ## [0.4.0](https://github.com/so1ve/latchshot/compare/v0.3.0...v0.4.0) - 2026-11-23
 
 ### Added
